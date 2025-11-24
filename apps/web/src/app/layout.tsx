@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import { Inter, Montserrat } from "next/font/google";
+import { Montserrat } from "next/font/google";
 import "./globals.css";
 
 import { WalletProvider } from "@/components/wallet-provider";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { Toaster } from "@/components/ui/sonner";
 import localFont from "next/font/local";
 
 const perfectDark = localFont({
@@ -55,6 +56,7 @@ export default function RootLayout({
               <main className="flex-1">{children}</main>
             </AuthProvider>
           </WalletProvider>
+          <Toaster />
         </div>
       </body>
     </html>

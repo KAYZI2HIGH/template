@@ -7,9 +7,10 @@ import { MainContent } from "@/components/MainContent";
 import { RightSidebar } from "@/components/RightSidebar";
 import { Room, UserPrediction } from "@/lib/types";
 import { useAccount } from "wagmi";
+import { toast } from "sonner";
 
 export default function Home() {
-    const { address, isConnected } = useAccount();
+    const { isConnected } = useAccount();
   const { isAuthenticated, user } = useAuth();
   // ============================================================================
   // STATE MANAGEMENT
@@ -172,8 +173,7 @@ export default function Home() {
     setJoinedRooms(newJoined);
     setSelectedRoomId(roomId);
 
-    // Show toast-like feedback
-    console.log(`✅ Successfully joined room ${roomId}`);
+    toast.success("Successfully joined room");
   };
 
   const handleViewOwnedRoomDetails = (roomId: string) => {
@@ -189,8 +189,7 @@ export default function Home() {
   }) => {
     if (!isAuthenticated || !user?.wallet_address || !isConnected) {
       console.warn("❌ Must be authenticated to create a room");
-      // TODO: Replace with shadcn Sonner toast when available
-      // toast.error("Please connect and authenticate your wallet to create a room");
+      toast.error("Please connect and authenticate your wallet to create a room");
       return;
     }
 
@@ -213,7 +212,7 @@ export default function Home() {
     setMyRooms([...myRooms, newRoom]);
     setSelectedRoomId(newRoom.id);
 
-    console.log(`✨ Room created successfully:`, newRoom);
+    toast.success("Room created successfully");
   };
 
   const handleStakeChange = (value: string) => {
@@ -223,7 +222,7 @@ export default function Home() {
   const handlePredictDirection = (direction: "UP" | "DOWN") => {
     if (!isAuthenticated || !user?.wallet_address) {
       console.warn("❌ Must be authenticated to make a prediction");
-      alert("Please connect and authenticate your wallet to make a prediction");
+      toast.error("Please connect and authenticate your wallet to make a prediction");
       return;
     }
 
@@ -259,15 +258,13 @@ export default function Home() {
     });
     setRooms(updatedRooms);
 
-    console.log(
-      `🎯 Predicted ${direction} on ${selectedRoom.name} with ${stake} cUSD`
-    );
+    toast.success(`Predicted ${direction} with ${stake} cUSD`);
   };
 
   const handleStartRoom = () => {
     if (!isAuthenticated || !user?.wallet_address) {
       console.warn("❌ Must be authenticated to start a room");
-      alert("Please connect and authenticate your wallet to start a room");
+      toast.error("Please connect and authenticate your wallet to start a room");
       return;
     }
 
@@ -284,7 +281,7 @@ export default function Home() {
     });
     setRooms(updatedRooms);
 
-    console.log(`🚀 Room started: ${selectedRoom.name}`);
+    toast.success("Room started successfully");
   };
 
   const handleViewPredictionDetails = (predictionId: number) => {
