@@ -33,23 +33,16 @@ export default function Home() {
   // ============================================================================
 
   // Fetch all rooms
-  const { data: rooms = [] } = useRooms();
+  const { data: rooms = [], isLoading: isLoadingRooms } = useRooms();
 
   // Fetch user's created rooms
-  const { data: myRooms = [] } = useMyRooms(user?.wallet_address ?? null);
+  const { data: myRooms = [], isLoading: isLoadingMyRooms } = useMyRooms(
+    user?.wallet_address ?? null
+  );
 
   // Fetch user's predictions
-  const { data: userPredictions = [] } = usePredictions();
-
-  console.log(
-    `📊 DEBUG: userPredictions loaded:`,
-    userPredictions.map((p) => ({
-      id: p.id,
-      name: p.name,
-      roomId: p.roomId,
-      status: p.status,
-    }))
-  );
+  const { data: userPredictions = [], isLoading: isLoadingPredictions } =
+    usePredictions();
 
   // Mutations
   const createRoomMutation = useCreateRoomMutation();
@@ -93,13 +86,10 @@ export default function Home() {
     setJoinedRooms(newJoined);
     setSelectedRoomId(roomId);
     setActiveTab("slip");
-
-    console.log(`✅ Successfully joined room ${roomId}`);
   };
 
   const handleViewOwnedRoomDetails = (roomId: string) => {
     setSelectedRoomId(roomId);
-    console.log(`👀 Viewing owned room details: ${roomId}`);
   };
 
   const handleCreateRoom = async (roomData: {
@@ -128,7 +118,6 @@ export default function Home() {
       setTxHash(null);
 
       // Step 1: Create room on smart contract
-      console.log(`🔄 Creating room on smart contract: ${roomData.name}`);
       const loadingToastId = toast.loading("Creating room on blockchain...");
 
       const durationMinutes = parseInt(roomData.timeDuration);
@@ -146,10 +135,6 @@ export default function Home() {
         );
       }
 
-      console.log(
-        `📊 DEBUG: durationMinutes=${durationMinutes}, minStakeAmount=${minStakeAmount}`
-      );
-
       const txHash = await createRoom(contractClients.walletClient, {
         name: roomData.name,
         symbol: roomData.symbol,
@@ -158,14 +143,12 @@ export default function Home() {
       });
 
       setTxHash(txHash);
-      console.log(`✅ Room creation tx hash: ${txHash}`);
       toast.success("Transaction submitted!", {
         description: `Hash: ${txHash.slice(0, 10)}...`,
         id: loadingToastId,
       });
 
       // Step 2: Save to database with tx hash using mutation
-      console.log(`🔄 Saving room to database...`);
       const dbLoadingToastId = toast.loading("Confirming on database...");
 
       await createRoomMutation.mutateAsync({
@@ -177,7 +160,6 @@ export default function Home() {
 
       setSelectedRoomId(null);
 
-      console.log(`✨ Room created successfully`);
       toast.success("Room created!", {
         description: `${roomData.name} is now live on blockchain`,
         id: dbLoadingToastId,
@@ -216,7 +198,6 @@ export default function Home() {
     }
 
     if (!selectedRoom) {
-      console.log("⚠️ No room selected");
       return;
     }
 
@@ -247,26 +228,13 @@ export default function Home() {
         );
       }
 
-      console.log(
-        `📊 DEBUG: stake="${stake}", stakeAmount=${stakeAmount}, type=${typeof stakeAmount}`
-      );
-
       // Step 1: Place prediction on smart contract
-      console.log(
-        `🔄 Placing ${direction} prediction on blockchain for ${selectedRoom.name}...`
-      );
       const loadingToastId = toast.loading(
         `Submitting ${direction} prediction to blockchain...`
       );
 
       // Use numeric ID for blockchain, fallback to regular ID
       const roomIdNumber = selectedRoom.numericId || parseInt(selectedRoom.id);
-
-      console.log(
-        `📊 DEBUG: selectedRoom=${JSON.stringify(
-          selectedRoom
-        )}, roomIdNumber=${roomIdNumber}`
-      );
 
       // Validate room ID
       if (!roomIdNumber || isNaN(roomIdNumber) || roomIdNumber <= 0) {
@@ -285,7 +253,6 @@ export default function Home() {
       );
 
       setTxHash(txHash);
-      console.log(`✅ Prediction tx hash: ${txHash}`);
       toast.success("Prediction submitted!", {
         description: `Hash: ${txHash.slice(
           0,
@@ -295,7 +262,6 @@ export default function Home() {
       });
 
       // Step 2: Save to database using mutation
-      console.log(`🔄 Saving prediction to database...`);
       const dbLoadingToastId = toast.loading(
         "Confirming prediction on database..."
       );
@@ -311,9 +277,6 @@ export default function Home() {
       // Invalidate rooms list to refresh counts (can also do this via mutation callback)
       setStake("100");
 
-      console.log(
-        `🎯 Predicted ${direction} on ${selectedRoom.name} with ${stakeAmount} cUSD`
-      );
       toast.success("Prediction placed!", {
         description: `${direction} bet of ${stakeAmount} cUSD confirmed on-chain`,
         id: dbLoadingToastId,
@@ -339,7 +302,6 @@ export default function Home() {
     }
 
     if (!selectedRoom) {
-      console.log("⚠️ No room selected");
       return;
     }
 
@@ -369,25 +331,12 @@ export default function Home() {
         );
       }
 
-      console.log(
-        `📊 DEBUG: mockStartingPrice=${mockStartingPrice}, type=${typeof mockStartingPrice}`
-      );
-
       // Step 1: Start room on smart contract
-      console.log(
-        `🔄 Starting room on blockchain: ${selectedRoom.name} at price ₦${mockStartingPrice}...`
-      );
       const loadingToastId = toast.loading(
         `Starting room at price ₦${mockStartingPrice} on blockchain...`
       );
 
       const roomIdNumber = selectedRoom.numericId || parseInt(selectedRoom.id);
-
-      console.log(
-        `📊 DEBUG: selectedRoom=${JSON.stringify(
-          selectedRoom
-        )}, roomIdNumber=${roomIdNumber}`
-      );
 
       // Validate room ID
       if (!roomIdNumber || isNaN(roomIdNumber) || roomIdNumber <= 0) {
@@ -405,21 +354,18 @@ export default function Home() {
       );
 
       setTxHash(txHash);
-      console.log(`✅ Room start tx hash: ${txHash}`);
       toast.success("Room started on blockchain!", {
         description: `Hash: ${txHash.slice(0, 10)}... at ₦${mockStartingPrice}`,
         id: loadingToastId,
       });
 
       // Step 2: Update database using mutation
-      console.log(`🔄 Updating room status in database...`);
       const dbLoadingToastId = toast.loading(
         "Confirming room start on database..."
       );
 
       await startRoomMutation.mutateAsync(selectedRoom.id);
 
-      console.log(`🚀 Room started on-chain: ${selectedRoom.name}`);
       toast.success("Room started!", {
         description: `Game is now in progress at ₦${mockStartingPrice}`,
         id: dbLoadingToastId,
@@ -436,21 +382,10 @@ export default function Home() {
   };
 
   const handleViewPredictionDetails = (prediction: UserPrediction) => {
-    console.log(`📊 DEBUG handleViewPredictionDetails:`, {
-      id: prediction.id,
-      name: prediction.name,
-      roomId: prediction.roomId,
-    });
-    console.log(
-      `  Available rooms:`,
-      rooms.map((r) => ({ id: r.id, name: r.name }))
-    );
-
     // Find the room by matching the prediction's roomId
     const room = rooms.find((r) => r.id === prediction.roomId);
 
     if (room) {
-      console.log(`  ✅ Found room: ${room.name}`);
       // Mark room as joined so user can view it
       const newJoined = new Set(joinedRooms);
       newJoined.add(room.id);
@@ -458,14 +393,6 @@ export default function Home() {
       setSelectedRoomId(room.id);
       // Switch to "slip" tab to show room details
       setActiveTab("slip");
-    } else {
-      console.warn(
-        `⚠️ Room not found for prediction roomId: ${prediction.roomId}`
-      );
-      console.log(
-        `  Available room IDs:`,
-        rooms.map((r) => r.id)
-      );
     }
   };
 
@@ -484,6 +411,7 @@ export default function Home() {
         <MainContent
           rooms={rooms}
           myRooms={myRooms}
+          isLoading={isLoadingRooms}
           onJoinRoom={handleJoinRoom}
           onViewOwnedRoomDetails={handleViewOwnedRoomDetails}
           onCreateRoom={handleCreateRoom}
@@ -500,6 +428,8 @@ export default function Home() {
           hasJoinedRoom={hasJoinedRoom}
           isViewingOwnedRoom={!!isViewingOwnedRoom}
           hasUserPredictedInRoom={!!hasUserPredictedInRoom}
+          isLoadingRooms={isLoadingRooms}
+          isLoadingPredictions={isLoadingPredictions}
           onStakeChange={handleStakeChange}
           onPredictDirection={handlePredictDirection}
           onStartRoom={handleStartRoom}

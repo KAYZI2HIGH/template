@@ -33,6 +33,8 @@ export function RightSidebar({
   hasJoinedRoom,
   isViewingOwnedRoom = false,
   hasUserPredictedInRoom = false,
+  isLoadingRooms = false,
+  isLoadingPredictions = false,
   onStakeChange,
   onPredictDirection,
   onStartRoom,
@@ -86,6 +88,7 @@ export function RightSidebar({
       {/* My Predictions Tab */}
       {activeTab === "predictions" && (
         <PredictionsList
+          isLoading={isLoadingPredictions}
           predictions={userPredictions}
           onViewDetails={onViewDetails}
         />

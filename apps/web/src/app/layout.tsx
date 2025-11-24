@@ -64,6 +64,7 @@ export default function RootLayout({
             theme="dark"
             richColors
             closeButton
+            duration={4000}
             // toastOptions={{
             //   style: {
             //     background: "#0F1729",
@@ -85,4 +86,3 @@ export default function RootLayout({
     </html>
   );
 }
-      
