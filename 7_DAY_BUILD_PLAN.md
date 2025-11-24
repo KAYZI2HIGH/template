@@ -119,7 +119,7 @@ CREATE INDEX idx_predictions_user ON predictions(user_wallet_address);
 
 - [ ] Create `src/contexts/AuthContext.tsx`
 - [ ] Implement `useAuth()` hook
-- [ ] Auto-connect wallet on page load
+- [ ] Auto-connect wallet on page load (but i think it's better to have a connect wallet button instead of auto connect user wallet)
 - [ ] Sync wallet connection with Supabase user
 
 **File: `src/contexts/AuthContext.tsx`**
