@@ -18,12 +18,15 @@
   },
   "devDependencies": {
     "@types/node": "^20.8.0",
-    "turbo": "^1.10.16",
+    "turbo": "^1.13.4",
     "typescript": "^5.2.2"
   },
   "packageManager": "pnpm@8.10.0",
   "engines": {
     "node": ">=18.0.0",
     "pnpm": ">=8.0.0"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.84.0"
   }
 }

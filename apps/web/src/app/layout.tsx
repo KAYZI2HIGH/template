@@ -1,15 +1,42 @@
-import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
-import './globals.css';
+import type { Metadata } from "next";
+import { Montserrat } from "next/font/google";
+import "./globals.css";
 
-import { Navbar } from '@/components/navbar';
-import { WalletProvider } from "@/components/wallet-provider"
+import { WalletProvider } from "@/components/wallet-provider";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { Toaster } from "@/components/ui/sonner";
+import localFont from "next/font/local";
 
-const inter = Inter({ subsets: ['latin'] });
+const perfectDark = localFont({
+  src: "../../public/fonts/pdark.ttf",
+  variable: "--font-pdark",
+});
+
+const moonerRegular = localFont({
+  src: "../../public/fonts/mooner-regular.otf",
+  variable: "--font-mooner-regular",
+});
+
+const moonerRounded = localFont({
+  src: "../../public/fonts/mooner-rounded.otf",
+  variable: "--font-mooner-rounded",
+});
+
+const moonerRegularOutline = localFont({
+  src: "../../public/fonts/mooner-regularoutline.otf",
+  variable: "--font-mooner-regular-outline",
+});
+
+const moonerRoundedOutline = localFont({
+  src: "../../public/fonts/mooner-roundedoutline.otf",
+  variable: "--font-mooner-rounded-outline",
+});
+
+const montserrat = Montserrat({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'templat',
-  description: 'A new Celo blockchain project',
+  title: "templat",
+  description: "A new Celo blockchain project",
 };
 
 export default function RootLayout({
@@ -19,15 +46,17 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
+      <body
+        className={`${montserrat.className} ${perfectDark.variable} ${moonerRegular.variable} ${moonerRounded.variable} ${moonerRegularOutline.variable} ${moonerRoundedOutline.variable} dark`}
+      >
         {/* Navbar is included on all pages */}
-        <div className="relative flex min-h-screen flex-col">
+        <div className="relative flex min-h-screen flex-col bg-[#10141E]">
           <WalletProvider>
-            <Navbar />
-            <main className="flex-1">
-              {children}
-            </main>
+            <AuthProvider>
+              <main className="flex-1">{children}</main>
+            </AuthProvider>
           </WalletProvider>
+          <Toaster />
         </div>
       </body>
     </html>
