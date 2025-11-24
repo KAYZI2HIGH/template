@@ -6,8 +6,10 @@ import { LeftSidebar } from "@/components/LeftSidebar";
 import { MainContent } from "@/components/MainContent";
 import { RightSidebar } from "@/components/RightSidebar";
 import { Room, UserPrediction } from "@/lib/types";
+import { useAccount } from "wagmi";
 
 export default function Home() {
+    const { address, isConnected } = useAccount();
   const { isAuthenticated, user } = useAuth();
   // ============================================================================
   // STATE MANAGEMENT
@@ -185,9 +187,10 @@ export default function Home() {
     timeDuration: string;
     minStake: string;
   }) => {
-    if (!isAuthenticated || !user?.wallet_address) {
+    if (!isAuthenticated || !user?.wallet_address || !isConnected) {
       console.warn("❌ Must be authenticated to create a room");
-      alert("Please connect and authenticate your wallet to create a room");
+      // TODO: Replace with shadcn Sonner toast when available
+      // toast.error("Please connect and authenticate your wallet to create a room");
       return;
     }
 
