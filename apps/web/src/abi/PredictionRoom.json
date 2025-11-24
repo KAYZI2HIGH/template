@@ -1,0 +1,892 @@
+[
+  {
+    "inputs": [],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidAmount",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidDirection",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidPrice",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidTimestamp",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NothingToClaim",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "RoomAlreadyExists",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "RoomAlreadyStarted",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "RoomNotActive",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "RoomNotFound",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "RoomNotResolved",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "RoomNotWaiting",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TransferFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "Unauthorized",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UserAlreadyPredicted",
+    "type": "error"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "roomId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "PayoutClaimed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "roomId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "predictor",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "enum PredictionRoom.PredictionDirection",
+        "name": "direction",
+        "type": "uint8"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "PredictionPlaced",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "roomId",
+        "type": "uint256"
+      }
+    ],
+    "name": "RoomCancelled",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "roomId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "creator",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "name",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "symbol",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "minStake",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "duration",
+        "type": "uint256"
+      }
+    ],
+    "name": "RoomCreated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "roomId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "endingPrice",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "enum PredictionRoom.PredictionDirection",
+        "name": "result",
+        "type": "uint8"
+      }
+    ],
+    "name": "RoomResolved",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "roomId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "startingPrice",
+        "type": "uint256"
+      }
+    ],
+    "name": "RoomStarted",
+    "type": "event"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "roomId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "wagerAmount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "enum PredictionRoom.PredictionDirection",
+        "name": "direction",
+        "type": "uint8"
+      }
+    ],
+    "name": "calculatePayout",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "roomId",
+        "type": "uint256"
+      }
+    ],
+    "name": "cancelRoom",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "roomId",
+        "type": "uint256"
+      }
+    ],
+    "name": "claim",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "name",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "symbol",
+        "type": "string"
+      },
+      {
+        "internalType": "uint256",
+        "name": "durationMinutes",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "minStakeWei",
+        "type": "uint256"
+      }
+    ],
+    "name": "createRoom",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "roomId",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "roomId",
+        "type": "uint256"
+      }
+    ],
+    "name": "getPredictionCounts",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "upCount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "downCount",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "roomId",
+        "type": "uint256"
+      }
+    ],
+    "name": "getRoom",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "id",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "creator",
+            "type": "address"
+          },
+          {
+            "internalType": "string",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "symbol",
+            "type": "string"
+          },
+          {
+            "internalType": "uint256",
+            "name": "startTime",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "endTime",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "minStake",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "startingPrice",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "endingPrice",
+            "type": "uint256"
+          },
+          {
+            "internalType": "enum PredictionRoom.RoomStatus",
+            "name": "status",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint256",
+            "name": "totalUpStake",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "totalDownStake",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bool",
+            "name": "pricesSet",
+            "type": "bool"
+          }
+        ],
+        "internalType": "struct PredictionRoom.Room",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "roomId",
+        "type": "uint256"
+      }
+    ],
+    "name": "getRoomPredictions",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "predictor",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "roomId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "enum PredictionRoom.PredictionDirection",
+            "name": "direction",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bool",
+            "name": "claimed",
+            "type": "bool"
+          },
+          {
+            "internalType": "uint256",
+            "name": "payout",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct PredictionRoom.Prediction[]",
+        "name": "",
+        "type": "tuple[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "roomId",
+        "type": "uint256"
+      }
+    ],
+    "name": "getRoomPredictors",
+    "outputs": [
+      {
+        "internalType": "address[]",
+        "name": "",
+        "type": "address[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "roomId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      }
+    ],
+    "name": "getUserPrediction",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "predictor",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "roomId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "enum PredictionRoom.PredictionDirection",
+            "name": "direction",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bool",
+            "name": "claimed",
+            "type": "bool"
+          },
+          {
+            "internalType": "uint256",
+            "name": "payout",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct PredictionRoom.Prediction[]",
+        "name": "",
+        "type": "tuple[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "roomId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      }
+    ],
+    "name": "hasUserPredicted",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "nextRoomId",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "owner",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "roomId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "enum PredictionRoom.PredictionDirection",
+        "name": "direction",
+        "type": "uint8"
+      }
+    ],
+    "name": "predict",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "roomId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "endingPrice",
+        "type": "uint256"
+      }
+    ],
+    "name": "resolveRoom",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "roomAllPredictions",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "predictor",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "roomId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "enum PredictionRoom.PredictionDirection",
+        "name": "direction",
+        "type": "uint8"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "claimed",
+        "type": "bool"
+      },
+      {
+        "internalType": "uint256",
+        "name": "payout",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "roomPredictors",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "rooms",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "creator",
+        "type": "address"
+      },
+      {
+        "internalType": "string",
+        "name": "name",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "symbol",
+        "type": "string"
+      },
+      {
+        "internalType": "uint256",
+        "name": "startTime",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "endTime",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "minStake",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "startingPrice",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "endingPrice",
+        "type": "uint256"
+      },
+      {
+        "internalType": "enum PredictionRoom.RoomStatus",
+        "name": "status",
+        "type": "uint8"
+      },
+      {
+        "internalType": "uint256",
+        "name": "totalUpStake",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "totalDownStake",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "pricesSet",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "roomId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "startingPrice",
+        "type": "uint256"
+      }
+    ],
+    "name": "startRoom",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "transferOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "userPredictions",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "predictor",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "roomId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "enum PredictionRoom.PredictionDirection",
+        "name": "direction",
+        "type": "uint8"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "claimed",
+        "type": "bool"
+      },
+      {
+        "internalType": "uint256",
+        "name": "payout",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "withdraw",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "stateMutability": "payable",
+    "type": "receive"
+  }
+]
