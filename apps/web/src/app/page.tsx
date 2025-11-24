@@ -6,8 +6,11 @@ import { LeftSidebar } from "@/components/LeftSidebar";
 import { MainContent } from "@/components/MainContent";
 import { RightSidebar } from "@/components/RightSidebar";
 import { Room, UserPrediction } from "@/lib/types";
+import { useAccount } from "wagmi";
+import { toast } from "sonner";
 
 export default function Home() {
+  const { address, isConnected } = useAccount();
   const { isAuthenticated, user } = useAuth();
   // ============================================================================
   // STATE MANAGEMENT
@@ -169,6 +172,7 @@ export default function Home() {
     newJoined.add(roomId);
     setJoinedRooms(newJoined);
     setSelectedRoomId(roomId);
+    setActiveTab("slip");
 
     // Show toast-like feedback
     console.log(`✅ Successfully joined room ${roomId}`);
@@ -185,9 +189,10 @@ export default function Home() {
     timeDuration: string;
     minStake: string;
   }) => {
-    if (!isAuthenticated || !user?.wallet_address) {
-      console.warn("❌ Must be authenticated to create a room");
-      alert("Please connect and authenticate your wallet to create a room");
+    if (!isAuthenticated || !user?.wallet_address || !isConnected) {
+      toast.error("Authentication Required", {
+        description: "Please connect and authenticate your wallet to create a room",
+      });
       return;
     }
 
@@ -218,9 +223,10 @@ export default function Home() {
   };
 
   const handlePredictDirection = (direction: "UP" | "DOWN") => {
-    if (!isAuthenticated || !user?.wallet_address) {
-      console.warn("❌ Must be authenticated to make a prediction");
-      alert("Please connect and authenticate your wallet to make a prediction");
+    if (!isAuthenticated || !user?.wallet_address || !isConnected) {
+      toast.error("Authentication Required", {
+        description: "Please connect and authenticate your wallet to make a prediction",
+      });
       return;
     }
 
@@ -262,9 +268,10 @@ export default function Home() {
   };
 
   const handleStartRoom = () => {
-    if (!isAuthenticated || !user?.wallet_address) {
-      console.warn("❌ Must be authenticated to start a room");
-      alert("Please connect and authenticate your wallet to start a room");
+    if (!isAuthenticated || !user?.wallet_address || !isConnected) {
+      toast.error("Authentication Required", {
+        description: "Please connect and authenticate your wallet to start a room",
+      });
       return;
     }
 

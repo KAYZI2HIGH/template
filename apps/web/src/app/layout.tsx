@@ -4,7 +4,9 @@ import "./globals.css";
 
 import { WalletProvider } from "@/components/wallet-provider";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { Toaster } from "sonner";
 import localFont from "next/font/local";
+import { Providers } from "@/components/Providers";
 
 const perfectDark = localFont({
   src: "../../public/fonts/pdark.ttf",
@@ -52,11 +54,35 @@ export default function RootLayout({
         <div className="relative flex min-h-screen flex-col bg-[#10141E]">
           <WalletProvider>
             <AuthProvider>
-              <main className="flex-1">{children}</main>
+              <Providers>
+                <main className="flex-1">{children}</main>
+              </Providers>
             </AuthProvider>
           </WalletProvider>
+          <Toaster
+            position="top-right"
+            theme="dark"
+            richColors
+            closeButton
+            // toastOptions={{
+            //   style: {
+            //     background: "#0F1729",
+            //     border: "1px solid #1E2943",
+            //     color: "#E4E4E7",
+            //     borderRadius: "8px",
+            //     boxShadow: "0 4px 12px rgba(0, 0, 0, 0.5)",
+            //   },
+            //   classNames: {
+            //     toast: "flex items-center gap-3",
+            //     title: "font-semibold text-sm",
+            //     description: "text-xs text-gray-400",
+            //     closeButton: "bg-gray-700 hover:bg-gray-600 text-gray-200",
+            //   },
+            // }}
+          />
         </div>
       </body>
     </html>
   );
 }
+      
