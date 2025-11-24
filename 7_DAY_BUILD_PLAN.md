@@ -630,9 +630,9 @@ main().catch(console.error);
 **Expected Output:**
 
 - ✅ Smart contract compiled successfully
-- ✅ Contract deployed to Celo Sepolia
-- ✅ Contract address in environment variables
-- ✅ ABI generated and usable in frontend
+- ✅ Contract deployed to Celo Sepolia (0xc54Bb296286F53cF4AF167514F6cF3A0A307B493)
+- ✅ Contract address in environment variables (NEXT_PUBLIC_CONTRACT_ADDRESS)
+- ✅ ABI generated and usable in frontend (src/abi/PredictionRoom.json)
 
 ---
 

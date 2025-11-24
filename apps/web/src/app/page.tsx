@@ -17,138 +17,18 @@ export default function Home() {
   // STATE MANAGEMENT
   // ============================================================================
 
-  // Mock rooms data
-  const [rooms, setRooms] = useState<Room[]>([
-    {
-      id: "1",
-      name: "MTN Stock Price Movement",
-      symbol: "MTN.NG",
-      status: "active",
-      roomStatus: "started",
-      time: "2h remaining",
-      timeDuration: "2h",
-      price: "₦290.50",
-      minStake: 100,
-      up: 12,
-      down: 8,
-    },
-    {
-      id: "2",
-      name: "Dangote Cement Rally",
-      symbol: "DANGCEM.NG",
-      status: "waiting",
-      roomStatus: "waiting",
-      time: "5h remaining",
-      timeDuration: "5h",
-      price: "₦254.80",
-      minStake: 50,
-      up: 5,
-      down: 3,
-    },
-    {
-      id: "3",
-      name: "Nigerian Banks Index",
-      symbol: "BANKS.NG",
-      status: "active",
-      roomStatus: "started",
-      time: "30m remaining",
-      timeDuration: "30m",
-      price: "₦445.20",
-      minStake: 200,
-      up: 15,
-      down: 10,
-    },
-    {
-      id: "4",
-      name: "Zenith Bank Strong Move",
-      symbol: "ZENITHBANK.NG",
-      status: "active",
-      roomStatus: "started",
-      time: "1h 15m remaining",
-      timeDuration: "1h 15m",
-      price: "₦35.50",
-      minStake: 75,
-      up: 20,
-      down: 12,
-    },
-    {
-      id: "5",
-      name: "SEPLAT Energy Surge",
-      symbol: "SEPLAT.NG",
-      status: "waiting",
-      roomStatus: "waiting",
-      time: "3h 30m remaining",
-      timeDuration: "3h 30m",
-      price: "₦520.00",
-      minStake: 150,
-      up: 8,
-      down: 6,
-      ownerId: "current-user-id",
-    },
-    {
-      id: "10",
-      name: "Previous DANGCEM Bet",
-      symbol: "DANGCEM.NG",
-      status: "completed",
-      roomStatus: "completed",
-      time: "3h 30m remaining",
-      timeDuration: "3h 30m",
-      price: "₦520.00",
-      minStake: 150,
-      up: 8,
-      down: 6,
-    },
-  ]);
+  // Rooms data - fetched from API
+  const [rooms, setRooms] = useState<Room[]>([]);
 
-  // User predictions
-  const [userPredictions, setUserPredictions] = useState<UserPrediction[]>([
-    {
-      id: 1,
-      name: "MTN Stock Prediction",
-      status: "active",
-      prediction: "UP",
-      stake: "500 cUSD",
-      timeRemaining: "45 minutes",
-      players: 20,
-      playersJoined: 12,
-      roomId: "1",
-    },
-    {
-      id: 10,
-      name: "Previous DANGCEM Bet",
-      status: "completed",
-      prediction: "DOWN",
-      stake: "250 cUSD",
-      outcome: "WIN",
-      payout: "487.50 cUSD",
-      roomId: "10",
-    },
-  ]);
+  // User predictions - fetched from API
+  const [userPredictions, setUserPredictions] = useState<UserPrediction[]>([]);
 
   // UI State
-  const [selectedRoomId, setSelectedRoomId] = useState<string | null>("5");
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"slip" | "predictions">("slip");
   const [stake, setStake] = useState("100");
-  const [joinedRooms, setJoinedRooms] = useState<Set<string>>(
-    new Set(["1", "10"])
-  );
-  // Initialize with one owned room for testing the "Start Game" button
-  const [myRooms, setMyRooms] = useState<Room[]>([
-    {
-      id: "5",
-      name: "SEPLAT Energy Surge",
-      symbol: "SEPLAT.NG",
-      status: "waiting",
-      roomStatus: "waiting",
-      time: "3h 30m remaining",
-      timeDuration: "3h 30m",
-      price: "₦520.00",
-      minStake: 150,
-      up: 8,
-      down: 6,
-      ownerId: "current-user-id",
-    },
-  ]);
+  const [joinedRooms, setJoinedRooms] = useState<Set<string>>(new Set());
+  const [myRooms, setMyRooms] = useState<Room[]>([]);
 
   // ============================================================================
   // COMPUTED VALUES

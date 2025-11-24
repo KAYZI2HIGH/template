@@ -3,16 +3,25 @@ import * as fs from "fs";
 import * as path from "path";
 
 async function main() {
-  console.log("🚀 Deploying PredictionRoom contract to Celo Alfajores...");
+  // Determine network
+  const network = hre.network.name;
+  console.log(`🚀 Deploying PredictionRoom contract to ${network}...`);
 
   // Get the contract factory using hardhat-ethers plugin
   const PredictionRoom = await hre.ethers.getContractFactory("PredictionRoom");
+
+  // Deploy with signer
+  const signer = await hre.ethers.provider.getSigner();
+  const signerAddress = await signer.getAddress();
+  console.log(`📝 Deployer account: ${signerAddress}`);
+
   const contract = await PredictionRoom.deploy();
 
+  console.log(`⏳ Waiting for deployment confirmation...`);
   await contract.waitForDeployment();
   const contractAddress = await contract.getAddress();
 
-  console.log("✅ PredictionRoom deployed to:", contractAddress);
+  console.log(`✅ PredictionRoom deployed to: ${contractAddress}`);
 
   // Save contract address to .env.local
   const envPath = path.join(__dirname, "../../web/.env.local");
@@ -49,12 +58,9 @@ async function main() {
   fs.writeFileSync(abiPath, JSON.stringify(artifact.abi, null, 2));
   console.log("✅ Contract ABI saved to src/abi/PredictionRoom.json");
 
-  const signer = await hre.ethers.provider.getSigner();
-  const signerAddress = await signer.getAddress();
-
   console.log("\n📋 Contract Information:");
   console.log("=======================");
-  console.log("Network: Celo Alfajores");
+  console.log(`Network: ${network}`);
   console.log("Contract Address:", contractAddress);
   console.log("Deployer:", signerAddress);
 }
