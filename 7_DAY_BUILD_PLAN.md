@@ -220,7 +220,7 @@ export function useAuth() {
 - [ ] Create `/api/auth/login` endpoint
 - [ ] Create user if doesn't exist
 - [ ] Generate JWT token
-- [ ] Create auth middleware for protected routes
+- [ ] Create auth middleware for protected routes( i don't think there's need for this, since our whole app is a single page, wallet authentication button would also be on the same page(where the wallet info currently sits in the frontend mockup))
 
 **File: `app/api/auth/login/route.ts`**
 

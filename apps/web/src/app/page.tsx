@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { LeftSidebar } from "@/components/LeftSidebar";
 import { MainContent } from "@/components/MainContent";
 import { RightSidebar } from "@/components/RightSidebar";
 import { Room, UserPrediction } from "@/lib/types";
 
 export default function Home() {
+  const { isAuthenticated, user } = useAuth();
   // ============================================================================
   // STATE MANAGEMENT
   // ============================================================================
@@ -183,6 +185,12 @@ export default function Home() {
     timeDuration: string;
     minStake: string;
   }) => {
+    if (!isAuthenticated || !user?.wallet_address) {
+      console.warn("❌ Must be authenticated to create a room");
+      alert("Please connect and authenticate your wallet to create a room");
+      return;
+    }
+
     const newRoom: Room = {
       id: (rooms.length + 1).toString(),
       name: roomData.name,
@@ -210,6 +218,12 @@ export default function Home() {
   };
 
   const handlePredictDirection = (direction: "UP" | "DOWN") => {
+    if (!isAuthenticated || !user?.wallet_address) {
+      console.warn("❌ Must be authenticated to make a prediction");
+      alert("Please connect and authenticate your wallet to make a prediction");
+      return;
+    }
+
     if (!selectedRoom) {
       console.log("⚠️ No room selected");
       return;
@@ -248,6 +262,12 @@ export default function Home() {
   };
 
   const handleStartRoom = () => {
+    if (!isAuthenticated || !user?.wallet_address) {
+      console.warn("❌ Must be authenticated to start a room");
+      alert("Please connect and authenticate your wallet to start a room");
+      return;
+    }
+
     if (!selectedRoom) {
       console.log("⚠️ No room selected");
       return;

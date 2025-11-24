@@ -1,6 +1,74 @@
 "use client";
 import Logo from "@/components/Logo";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useAuth, useAutoAuth } from "@/contexts/AuthContext";
+import { useAccount } from "wagmi";
+import { useEffect } from "react";
+import { Suspense } from "react";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { useDisconnect } from "wagmi";
+
+function WalletSection() {
+  const { logout, isAuthenticated, user, isLoading } = useAuth();
+  const { address, isConnected } = useAccount();
+  const { disconnect } = useDisconnect();
+  const autoAuth = useAutoAuth();
+
+  // Auto-authenticate when wallet connects
+  useEffect(() => {
+    if (isConnected && address && !isAuthenticated && !isLoading) {
+      autoAuth(address);
+    }
+  }, [isConnected, address, isAuthenticated, isLoading, autoAuth]);
+
+  const handleDisconnect = () => {
+    logout(); // Clear app auth state
+    disconnect(); // Disconnect wallet from RainbowKit
+  };
+
+  return (
+    <section className="p-4 border-[#1E2943] border-b">
+      <h2 className="font-semibold mb-3 text-sm">Wallet</h2>
+      <div className="bg-[#0F1729] rounded p-3 border border-[#1E2943]">
+        {isLoading && (
+          <p className="text-xs text-muted-foreground mb-2">
+            Authenticating...
+          </p>
+        )}
+
+        {!isConnected ? (
+          <div className="flex flex-col gap-2">
+            <p className="text-xs text-muted-foreground mb-2">
+              Click to connect wallet
+            </p>
+            <ConnectButton />
+          </div>
+        ) : !isAuthenticated ? (
+          <p className="text-xs text-muted-foreground mb-2">
+            Auto-authenticating wallet...
+          </p>
+        ) : (
+          <>
+            <p className="text-xs text-muted-foreground mb-2">✅ Connected</p>
+            <p className="text-xs font-mono text-green-300 max-w-[180px] truncate">
+              {user?.wallet_address}
+            </p>
+            <p className="text-xs text-muted-foreground mt-2 mb-3">
+              User:{" "}
+              <span className="text-green-300">{user?.username || "Anon"}</span>
+            </p>
+            <button
+              onClick={handleDisconnect}
+              className="w-full bg-red-500 hover:bg-red-600 transition-all duration-300 text-white py-2 px-3 rounded text-sm font-medium"
+            >
+              Disconnect
+            </button>
+          </>
+        )}
+      </div>
+    </section>
+  );
+}
 
 export function LeftSidebar() {
   return (
@@ -14,18 +82,15 @@ export function LeftSidebar() {
 
       <ScrollArea className="h-[calc(100vh-118px)]">
         {/* Wallet Section */}
-        <section className="p-4 border-[#1E2943] border-b">
-          <h2 className="font-semibold mb-3 text-sm">Wallet</h2>
-          <div className="bg-[#0F1729] rounded p-3 border border-[#1E2943]">
-            <p className="text-xs text-muted-foreground mb-2">Connected</p>
-            <p className="text-xs font-mono text-green-300 truncate">
-              0x1234...5678
-            </p>
-            <p className="text-xs text-muted-foreground mt-2">
-              Balance: <span className="text-green-300">100 cUSD</span>
-            </p>
-          </div>
-        </section>
+        <Suspense
+          fallback={
+            <div className="p-4 text-xs text-muted-foreground">
+              Loading wallet...
+            </div>
+          }
+        >
+          <WalletSection />
+        </Suspense>
 
         {/* How to Play Section */}
         <section className="p-4 border-[#1E2943] border-b">

@@ -1,68 +1,22 @@
-"use client"
-
-import { useState, useEffect } from 'react'
+'use client'
 import '@rainbow-me/rainbowkit/styles.css'
 import { getDefaultConfig, RainbowKitProvider } from '@rainbow-me/rainbowkit'
 import { WagmiProvider } from 'wagmi'
 import { celo, celoAlfajores } from 'wagmi/chains'
-import { defineChain } from 'viem'
-import { QueryClientProvider, QueryClient } from '@tanstack/react-query'
-import { http } from 'wagmi'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
-// Define Celo Sepolia chain
-const celoSepolia = defineChain({
-  id: 11142220,
-  name: 'Celo Sepolia',
-  nativeCurrency: {
-    decimals: 18,
-    name: 'CELO',
-    symbol: 'CELO',
-  },
-  rpcUrls: {
-    default: {
-      http: ['https://forno.celo-sepolia.celo-testnet.org'],
-    },
-  },
-  blockExplorers: {
-    default: {
-      name: 'Celo Sepolia Blockscout',
-      url: 'https://celo-sepolia.blockscout.com',
-    },
-  },
-  testnet: true,
+const config = getDefaultConfig({
+  appName: 'Stock Predictions',
+  projectId: 'YOUR_PROJECT_ID',
+  chains: [celo, celoAlfajores],
+  ssr: true,
 })
 
-// Create config with proper SSR handling
-let config: any = null
+const queryClient = new QueryClient()
 
-function getWagmiConfig() {
-  if (!config) {
-    config = getDefaultConfig({
-      appName: 'templat',
-      projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'YOUR_PROJECT_ID',
-      chains: [celo, celoAlfajores, celoSepolia],
-      transports: {
-        [celo.id]: http(),
-        [celoAlfajores.id]: http(),
-        [celoSepolia.id]: http(),
-      },
-      ssr: true,
-    })
-  }
-  return config
-}
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
-    },
-  },
-})
-
-function WalletProviderInner({ children }: { children: React.ReactNode }) {
+export function WalletProvider({ children }: { children: React.ReactNode }) {
   return (
-    <WagmiProvider config={getWagmiConfig()}>
+    <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider>
           {children}
@@ -70,19 +24,4 @@ function WalletProviderInner({ children }: { children: React.ReactNode }) {
       </QueryClientProvider>
     </WagmiProvider>
   )
-}
-
-export function WalletProvider({ children }: { children: React.ReactNode }) {
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  // Show children without wallet functionality during SSR
-  if (!mounted) {
-    return <>{children}</>
-  }
-
-  return <WalletProviderInner>{children}</WalletProviderInner>
 }

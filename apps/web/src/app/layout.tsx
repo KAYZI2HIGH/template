@@ -3,6 +3,7 @@ import { Inter, Montserrat } from "next/font/google";
 import "./globals.css";
 
 import { WalletProvider } from "@/components/wallet-provider";
+import { AuthProvider } from "@/contexts/AuthContext";
 import localFont from "next/font/local";
 
 const perfectDark = localFont({
@@ -50,7 +51,9 @@ export default function RootLayout({
         {/* Navbar is included on all pages */}
         <div className="relative flex min-h-screen flex-col bg-[#10141E]">
           <WalletProvider>
-            <main className="flex-1">{children}</main>
+            <AuthProvider>
+              <main className="flex-1">{children}</main>
+            </AuthProvider>
           </WalletProvider>
         </div>
       </body>

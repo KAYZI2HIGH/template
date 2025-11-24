@@ -256,19 +256,28 @@ export function MainContent({
             </div>
             <div>
               <label className="text-xs text-gray-400 block mb-2">
-                Time Duration
+                Prediction Duration
               </label>
-              <Input
-                placeholder="e.g., 2h, 30m"
+              <Select
                 value={createFormData.timeDuration}
-                onChange={(e) =>
+                onValueChange={(value) =>
                   setCreateFormData({
                     ...createFormData,
-                    timeDuration: e.target.value,
+                    timeDuration: value,
                   })
                 }
-                className="bg-[#1E2943] border-[#1E2943] text-white"
-              />
+              >
+                <SelectTrigger className="bg-[#1E2943] border-[#1E2943] text-white">
+                  <SelectValue placeholder="Select duration..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1 week">1 Week</SelectItem>
+                  <SelectItem value="2 weeks">2 Weeks</SelectItem>
+                  <SelectItem value="1 month">1 Month</SelectItem>
+                  <SelectItem value="2 months">2 Months</SelectItem>
+                  <SelectItem value="3 months">3 Months</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <label className="text-xs text-gray-400 block mb-2">
