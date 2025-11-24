@@ -331,7 +331,7 @@ export default function RootLayout({ children }) {
 - [ ] Update `page.tsx` to use `user.wallet_address` instead of "current-user-id"
 - [ ] Create auth-protected API fetch wrapper
 - [ ] Update all handlers to include auth token
-- [ ] Display connected wallet in navbar
+- [ ] Display connected wallet in leftsidebar
 
 **File: `src/lib/api-client.ts`**
 

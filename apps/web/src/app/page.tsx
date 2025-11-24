@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { LeftSidebar } from "@/components/LeftSidebar";
 import { MainContent } from "@/components/MainContent";
@@ -8,6 +8,7 @@ import { RightSidebar } from "@/components/RightSidebar";
 import { Room, UserPrediction } from "@/lib/types";
 import { useAccount } from "wagmi";
 import { toast } from "sonner";
+import { authenticatedFetch } from "@/lib/api-client";
 
 export default function Home() {
   const { address, isConnected } = useAccount();
@@ -164,6 +165,41 @@ export default function Home() {
     selectedRoom && userPredictions.some((p) => p.roomId === selectedRoom.id);
 
   // ============================================================================
+  // INITIALIZE DATA FROM API
+  // ============================================================================
+
+  useEffect(() => {
+    const loadRooms = async () => {
+      try {
+        const response = await authenticatedFetch("/api/rooms");
+        if (response.ok) {
+          const fetchedRooms = await response.json();
+          setRooms(fetchedRooms);
+        }
+      } catch (error) {
+        console.error("Failed to load rooms:", error);
+      }
+    };
+
+    const loadPredictions = async () => {
+      try {
+        const response = await authenticatedFetch("/api/predictions");
+        if (response.ok) {
+          const fetchedPredictions = await response.json();
+          setUserPredictions(fetchedPredictions);
+        }
+      } catch (error) {
+        console.error("Failed to load predictions:", error);
+      }
+    };
+
+    if (isAuthenticated && user?.wallet_address) {
+      loadRooms();
+      loadPredictions();
+    }
+  }, [isAuthenticated, user?.wallet_address]);
+
+  // ============================================================================
   // HANDLERS
   // ============================================================================
 
@@ -174,7 +210,6 @@ export default function Home() {
     setSelectedRoomId(roomId);
     setActiveTab("slip");
 
-    // Show toast-like feedback
     console.log(`✅ Successfully joined room ${roomId}`);
   };
 
@@ -183,7 +218,7 @@ export default function Home() {
     console.log(`👀 Viewing owned room details: ${roomId}`);
   };
 
-  const handleCreateRoom = (roomData: {
+  const handleCreateRoom = async (roomData: {
     name: string;
     symbol: string;
     timeDuration: string;
@@ -191,41 +226,52 @@ export default function Home() {
   }) => {
     if (!isAuthenticated || !user?.wallet_address || !isConnected) {
       toast.error("Authentication Required", {
-        description: "Please connect and authenticate your wallet to create a room",
+        description:
+          "Please connect and authenticate your wallet to create a room",
       });
       return;
     }
 
-    const newRoom: Room = {
-      id: (rooms.length + 1).toString(),
-      name: roomData.name,
-      symbol: roomData.symbol,
-      status: "waiting",
-      roomStatus: "waiting",
-      time: `${roomData.timeDuration} remaining`,
-      timeDuration: roomData.timeDuration,
-      price: "₦0.00",
-      minStake: parseInt(roomData.minStake),
-      up: 0,
-      down: 0,
-      ownerId: "current-user-id",
-    };
+    try {
+      const response = await authenticatedFetch("/api/rooms", {
+        method: "POST",
+        body: JSON.stringify(roomData),
+      });
 
-    setRooms([...rooms, newRoom]);
-    setMyRooms([...myRooms, newRoom]);
-    setSelectedRoomId(newRoom.id);
+      if (!response.ok) {
+        const error = await response.json();
+        toast.error("Failed to create room", {
+          description: error.error || "Unknown error",
+        });
+        return;
+      }
 
-    console.log(`✨ Room created successfully:`, newRoom);
+      const newRoom = await response.json();
+      setRooms([...rooms, newRoom]);
+      setMyRooms([...myRooms, newRoom]);
+      setSelectedRoomId(newRoom.id);
+
+      console.log(`✨ Room created successfully:`, newRoom);
+      toast.success("Room created!", {
+        description: `${newRoom.name} is now live`,
+      });
+    } catch (error) {
+      console.error("Error creating room:", error);
+      toast.error("Failed to create room", {
+        description: "Please try again",
+      });
+    }
   };
 
   const handleStakeChange = (value: string) => {
     setStake(value);
   };
 
-  const handlePredictDirection = (direction: "UP" | "DOWN") => {
+  const handlePredictDirection = async (direction: "UP" | "DOWN") => {
     if (!isAuthenticated || !user?.wallet_address || !isConnected) {
       toast.error("Authentication Required", {
-        description: "Please connect and authenticate your wallet to make a prediction",
+        description:
+          "Please connect and authenticate your wallet to make a prediction",
       });
       return;
     }
@@ -235,42 +281,60 @@ export default function Home() {
       return;
     }
 
-    const newPrediction: UserPrediction = {
-      id: userPredictions.length + 1,
-      name: `${selectedRoom.name} - ${direction}`,
-      status: "active",
-      prediction: direction,
-      stake: `${stake} cUSD`,
-      timeRemaining: selectedRoom.time,
-      players: selectedRoom.up + selectedRoom.down,
-      playersJoined: selectedRoom.up + selectedRoom.down + 1,
-      roomId: selectedRoom.id,
-    };
+    try {
+      const response = await authenticatedFetch("/api/predictions", {
+        method: "POST",
+        body: JSON.stringify({
+          roomId: selectedRoom.id,
+          direction,
+          stake: parseFloat(stake),
+          roomName: selectedRoom.name,
+        }),
+      });
 
-    setUserPredictions([...userPredictions, newPrediction]);
-
-    // Update room stats
-    const updatedRooms = rooms.map((room) => {
-      if (room.id === selectedRoom.id) {
-        return {
-          ...room,
-          [direction === "UP" ? "up" : "down"]:
-            room[direction === "UP" ? "up" : "down"] + 1,
-        };
+      if (!response.ok) {
+        const error = await response.json();
+        toast.error("Failed to place prediction", {
+          description: error.error || "Unknown error",
+        });
+        return;
       }
-      return room;
-    });
-    setRooms(updatedRooms);
 
-    console.log(
-      `🎯 Predicted ${direction} on ${selectedRoom.name} with ${stake} cUSD`
-    );
+      const newPrediction = await response.json();
+      setUserPredictions([...userPredictions, newPrediction]);
+
+      // Update room stats
+      const updatedRooms = rooms.map((room) => {
+        if (room.id === selectedRoom.id) {
+          return {
+            ...room,
+            [direction === "UP" ? "up" : "down"]:
+              room[direction === "UP" ? "up" : "down"] + 1,
+          };
+        }
+        return room;
+      });
+      setRooms(updatedRooms);
+
+      console.log(
+        `🎯 Predicted ${direction} on ${selectedRoom.name} with ${stake} cUSD`
+      );
+      toast.success("Prediction placed!", {
+        description: `${direction} bet of ${stake} cUSD confirmed`,
+      });
+    } catch (error) {
+      console.error("Error placing prediction:", error);
+      toast.error("Failed to place prediction", {
+        description: "Please try again",
+      });
+    }
   };
 
-  const handleStartRoom = () => {
+  const handleStartRoom = async () => {
     if (!isAuthenticated || !user?.wallet_address || !isConnected) {
       toast.error("Authentication Required", {
-        description: "Please connect and authenticate your wallet to start a room",
+        description:
+          "Please connect and authenticate your wallet to start a room",
       });
       return;
     }
@@ -280,15 +344,40 @@ export default function Home() {
       return;
     }
 
-    const updatedRooms = rooms.map((room) => {
-      if (room.id === selectedRoom.id && room.status === "waiting") {
-        return { ...room, status: "active", roomStatus: "started" as const };
-      }
-      return room;
-    });
-    setRooms(updatedRooms);
+    try {
+      const response = await authenticatedFetch(
+        `/api/rooms/${selectedRoom.id}/start`,
+        {
+          method: "PUT",
+        }
+      );
 
-    console.log(`🚀 Room started: ${selectedRoom.name}`);
+      if (!response.ok) {
+        const error = await response.json();
+        toast.error("Failed to start room", {
+          description: error.error || "Unknown error",
+        });
+        return;
+      }
+
+      const updatedRooms = rooms.map((room) => {
+        if (room.id === selectedRoom.id && room.status === "waiting") {
+          return { ...room, status: "started", roomStatus: "started" as const };
+        }
+        return room;
+      });
+      setRooms(updatedRooms);
+
+      console.log(`🚀 Room started: ${selectedRoom.name}`);
+      toast.success("Room started!", {
+        description: "Game is now in progress",
+      });
+    } catch (error) {
+      console.error("Error starting room:", error);
+      toast.error("Failed to start room", {
+        description: "Please try again",
+      });
+    }
   };
 
   const handleViewPredictionDetails = (predictionId: number) => {
