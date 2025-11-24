@@ -41,6 +41,16 @@ export default function Home() {
   // Fetch user's predictions
   const { data: userPredictions = [] } = usePredictions();
 
+  console.log(
+    `📊 DEBUG: userPredictions loaded:`,
+    userPredictions.map((p) => ({
+      id: p.id,
+      name: p.name,
+      roomId: p.roomId,
+      status: p.status,
+    }))
+  );
+
   // Mutations
   const createRoomMutation = useCreateRoomMutation();
   const startRoomMutation = useStartRoomMutation();
@@ -425,15 +435,36 @@ export default function Home() {
     }
   };
 
-  const handleViewPredictionDetails = (predictionId: number) => {
-    const prediction = userPredictions.find((p) => p.id === predictionId);
-    if (prediction) {
-      setSelectedRoomId(prediction.roomId);
-      // Switch to "slip" tab to show room details, not predictions list
+  const handleViewPredictionDetails = (prediction: UserPrediction) => {
+    console.log(`📊 DEBUG handleViewPredictionDetails:`, {
+      id: prediction.id,
+      name: prediction.name,
+      roomId: prediction.roomId,
+    });
+    console.log(
+      `  Available rooms:`,
+      rooms.map((r) => ({ id: r.id, name: r.name }))
+    );
+
+    // Find the room by matching the prediction's roomId
+    const room = rooms.find((r) => r.id === prediction.roomId);
+
+    if (room) {
+      console.log(`  ✅ Found room: ${room.name}`);
+      // Mark room as joined so user can view it
+      const newJoined = new Set(joinedRooms);
+      newJoined.add(room.id);
+      setJoinedRooms(newJoined);
+      setSelectedRoomId(room.id);
+      // Switch to "slip" tab to show room details
       setActiveTab("slip");
+    } else {
+      console.warn(
+        `⚠️ Room not found for prediction roomId: ${prediction.roomId}`
+      );
       console.log(
-        `📊 Viewing room from prediction details:`,
-        prediction?.roomId
+        `  Available room IDs:`,
+        rooms.map((r) => r.id)
       );
     }
   };

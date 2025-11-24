@@ -24,10 +24,33 @@ async function transformPrediction(
   const roomName = room?.name || "Unknown Room";
   const roomId = room?.room_id_web || `room-${dbPrediction.room_id}`;
 
+  console.log(`📊 DEBUG transformPrediction:`, {
+    predictionId: dbPrediction.id,
+    dbRoom_id: dbPrediction.room_id,
+    room: room
+      ? {
+          id: room.id,
+          room_id_web: room.room_id_web,
+          name: room.name,
+          status: room.status,
+        }
+      : null,
+    computedRoomId: roomId,
+  });
+
+  // Determine prediction status based on room status
+  let predictionStatus: "active" | "completed" | "waiting" = "waiting";
+  if (dbPrediction.outcome === "PENDING") {
+    // Check room status to determine if prediction is active or waiting
+    predictionStatus = room?.status === "started" ? "active" : "waiting";
+  } else {
+    predictionStatus = "completed";
+  }
+
   return {
-    id: parseInt(dbPrediction.id),
+    id: dbPrediction.id as string,
     name: `${roomName} - ${dbPrediction.direction}`,
-    status: dbPrediction.outcome === "PENDING" ? "active" : "completed",
+    status: predictionStatus,
     prediction: dbPrediction.direction as "UP" | "DOWN",
     stake: `${dbPrediction.stake_amount} cUSD`,
     timeRemaining: room?.duration_minutes
@@ -40,8 +63,8 @@ async function transformPrediction(
     payout: dbPrediction.payout_amount
       ? `${dbPrediction.payout_amount} cUSD`
       : undefined,
-    players: 0, // Will update when needed
-    playersJoined: 0, // Will update when needed
+    players: 0,
+    playersJoined: 0,
     roomId: roomId,
   };
 }
@@ -62,6 +85,15 @@ export async function GET(request: Request) {
 
     if (predictionsError) throw predictionsError;
 
+    console.log(
+      `📊 DEBUG GET /api/predictions: Raw predictions from DB:`,
+      predictions?.map((p) => ({
+        id: p.id,
+        room_id: p.room_id,
+        direction: p.direction,
+      }))
+    );
+
     // Fetch associated rooms for context
     const { data: rooms, error: roomsError } = await supabase
       .from("rooms")
@@ -69,14 +101,41 @@ export async function GET(request: Request) {
 
     if (roomsError) throw roomsError;
 
+    console.log(
+      `📊 DEBUG GET /api/predictions: Available rooms:`,
+      rooms?.map((r) => ({
+        id: r.id,
+        room_id_web: r.room_id_web,
+        name: r.name,
+      }))
+    );
+
     // Transform predictions with room context
     const transformedPredictions = await Promise.all(
       (predictions || []).map((pred) => {
+        // Match by database UUID (pred.room_id matches room.id from database)
         const room = rooms?.find((r) => r.id === pred.room_id);
+        console.log(
+          `📊 DEBUG: Finding room for prediction room_id=${pred.room_id}, found:`,
+          {
+            roomFound: !!room,
+            roomData: room
+              ? { id: room.id, room_id_web: room.room_id_web, name: room.name }
+              : null,
+          }
+        );
         return transformPrediction(pred, room);
       })
     );
 
+    console.log(
+      `📊 DEBUG GET /api/predictions: Returning ${transformedPredictions.length} predictions`
+    );
+    transformedPredictions.forEach((p) => {
+      console.log(
+        `  - Prediction ${p.id}: roomId=${p.roomId}, name=${p.name}, status=${p.status}`
+      );
+    });
     return Response.json(transformedPredictions);
   } catch (error) {
     console.error("Error fetching predictions:", error);

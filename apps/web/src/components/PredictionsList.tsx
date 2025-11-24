@@ -7,7 +7,7 @@ import { UserPrediction } from "@/lib/types";
 interface PredictionsListProps {
   predictions: UserPrediction[];
   isLoading?: boolean;
-  onViewDetails: (predictionId: number) => void;
+  onViewDetails: (prediction: UserPrediction) => void;
 }
 
 export function PredictionsList({
@@ -42,9 +42,9 @@ export function PredictionsList({
             </div>
           </div>
         ) : (
-          predictions.map((pred) => (
+          predictions.map((pred, index) => (
             <div
-              key={pred.id}
+              key={`${pred.id}-${pred.roomId}-${index}`}
               className="bg-[#0F1729] border border-[#1E2943] rounded p-3 pl-5 hover:border-green-300/50 transition-colors cursor-pointer relative"
             >
               <div
@@ -119,7 +119,7 @@ export function PredictionsList({
               </div>
 
               <button
-                onClick={() => onViewDetails(pred.id)}
+                onClick={() => onViewDetails(pred)}
                 className="w-full mt-2 text-xs text-green-300 hover:text-green-200 font-medium transition-colors flex items-center justify-center gap-1"
               >
                 View Details <ChevronRight size={12} />

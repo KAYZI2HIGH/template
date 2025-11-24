@@ -19,7 +19,7 @@ interface RightSidebarProps {
   onPredictDirection: (direction: "UP" | "DOWN") => void;
   onStartRoom?: () => void;
   userPredictions: UserPrediction[];
-  onViewDetails: (predictionId: number) => void;
+  onViewDetails: (prediction: UserPrediction) => void;
   myRooms?: Room[];
 }
 

@@ -15,7 +15,7 @@ export interface Room {
 }
 
 export interface UserPrediction {
-  id: number;
+  id: string; // UUID from database
   name: string;
   status: "active" | "completed" | "waiting";
   prediction: "UP" | "DOWN";
