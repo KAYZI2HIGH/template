@@ -1,13 +1,7 @@
 /**
  * Auth Middleware for API Routes
- * Verifies JWT tokens and extracts wallet address
+ * Verifies tokens and extracts wallet address
  */
-
-import { jwtVerify } from "jose";
-
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "your-secret-key"
-);
 
 export interface AuthPayload {
   wallet_address: string;
@@ -16,7 +10,8 @@ export interface AuthPayload {
 }
 
 /**
- * Verify JWT token and return decoded payload
+ * Verify token and return decoded payload
+ * Supports simple base64 tokens in format: token_<wallet>_<timestamp>_<random>
  */
 export async function verifyAuth(
   request: Request
@@ -29,8 +24,30 @@ export async function verifyAuth(
 
     const token = authHeader.substring(7); // Remove "Bearer " prefix
 
-    const verified = await jwtVerify(token, JWT_SECRET);
-    return verified.payload as unknown as AuthPayload;
+    // Decode base64 token
+    try {
+      const decoded = Buffer.from(token, "base64").toString("utf-8");
+
+      // Parse format: token_<wallet>_<timestamp>_<random>
+      const parts = decoded.split("_");
+      if (parts.length !== 4 || parts[0] !== "token") {
+        console.error("Invalid token format");
+        return null;
+      }
+
+      const wallet_address = parts[1];
+
+      // Validate wallet address format (0x followed by 40 hex chars)
+      if (!wallet_address.match(/^0x[a-f0-9]{40}$/i)) {
+        console.error("Invalid wallet address in token");
+        return null;
+      }
+
+      return { wallet_address };
+    } catch (decodeError) {
+      console.error("Failed to decode token:", decodeError);
+      return null;
+    }
   } catch (error) {
     console.error("Auth verification failed:", error);
     return null;

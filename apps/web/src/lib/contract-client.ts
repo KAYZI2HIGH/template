@@ -4,14 +4,11 @@
  */
 
 import { createPublicClient, createWalletClient, http, parseEther } from "viem";
-import { celo, celoAlfajores } from "viem/chains";
 import { useAccount, usePublicClient, useWalletClient } from "wagmi";
 import PredictionRoomABI from "@/abi/PredictionRoom.json";
 
 const CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS ||
   "0x") as `0x${string}`;
-
-const CHAIN = celoAlfajores; // Using Alfajores testnet
 
 // ============================================================================
 // HOOK: useContractClients
@@ -46,6 +43,17 @@ export async function createRoom(
   }
 ) {
   try {
+    // Validate minimum stake
+    if (
+      !roomData.minStake ||
+      isNaN(roomData.minStake) ||
+      roomData.minStake <= 0
+    ) {
+      throw new Error("Invalid minimum stake amount: " + roomData.minStake);
+    }
+
+    const minStakeBigInt = parseEther(roomData.minStake.toString());
+
     const hash = await walletClient.writeContract({
       address: CONTRACT_ADDRESS,
       abi: PredictionRoomABI,
@@ -53,8 +61,8 @@ export async function createRoom(
       args: [
         roomData.name,
         roomData.symbol,
-        roomData.durationMinutes,
-        parseEther(roomData.minStake.toString()),
+        BigInt(roomData.durationMinutes),
+        minStakeBigInt,
       ],
     });
 
@@ -75,18 +83,24 @@ export async function createRoom(
 export async function placePrediction(
   walletClient: any,
   roomId: number,
-  direction: "UP" | "DOWN", // 1 = UP, 2 = DOWN
+  direction: "UP" | "DOWN",
   stakeAmount: number
 ) {
   try {
+    // Validate stake amount
+    if (!stakeAmount || isNaN(stakeAmount) || stakeAmount <= 0) {
+      throw new Error("Invalid stake amount: " + stakeAmount);
+    }
+
     const directionEnum = direction === "UP" ? 1 : 2;
+    const stakeBigInt = parseEther(stakeAmount.toString());
 
     const hash = await walletClient.writeContract({
       address: CONTRACT_ADDRESS,
       abi: PredictionRoomABI,
       functionName: "predict",
-      args: [roomId, directionEnum],
-      value: parseEther(stakeAmount.toString()),
+      args: [BigInt(roomId), BigInt(directionEnum)],
+      value: stakeBigInt,
     });
 
     return hash;
@@ -109,11 +123,18 @@ export async function startRoom(
   startingPrice: number
 ) {
   try {
+    // Validate starting price
+    if (!startingPrice || isNaN(startingPrice) || startingPrice <= 0) {
+      throw new Error("Invalid starting price: " + startingPrice);
+    }
+
+    const priceBigInt = parseEther(startingPrice.toString());
+
     const hash = await walletClient.writeContract({
       address: CONTRACT_ADDRESS,
       abi: PredictionRoomABI,
       functionName: "startRoom",
-      args: [roomId, parseEther(startingPrice.toString())],
+      args: [BigInt(roomId), priceBigInt],
     });
 
     return hash;
@@ -132,11 +153,18 @@ export async function resolveRoom(
   endingPrice: number
 ) {
   try {
+    // Validate ending price
+    if (!endingPrice || isNaN(endingPrice) || endingPrice <= 0) {
+      throw new Error("Invalid ending price: " + endingPrice);
+    }
+
+    const priceBigInt = parseEther(endingPrice.toString());
+
     const hash = await walletClient.writeContract({
       address: CONTRACT_ADDRESS,
       abi: PredictionRoomABI,
       functionName: "resolveRoom",
-      args: [roomId, parseEther(endingPrice.toString())],
+      args: [BigInt(roomId), priceBigInt],
     });
 
     return hash;

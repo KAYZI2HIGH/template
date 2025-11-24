@@ -1,5 +1,6 @@
 export interface Room {
-  id: string;
+  id: string; // Frontend display ID (UUID format)
+  numericId?: number; // Numeric ID for blockchain calls
   name: string;
   symbol: string; // Stock symbol (e.g., "MTN.NG", "DANGCEM.NG")
   status: string;

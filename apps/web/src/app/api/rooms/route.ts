@@ -39,8 +39,19 @@ async function transformRoom(dbRoom: any, predictions: any[]): Promise<Room> {
     (p) => p.direction === "DOWN"
   ).length;
 
+  // Generate a numeric ID from the UUID by hashing it to a positive integer
+  // This ensures consistency across calls
+  let numericId = 1;
+  if (dbRoom.id) {
+    const hash = dbRoom.id.split("").reduce((acc, char) => {
+      return (acc << 5) - acc + char.charCodeAt(0);
+    }, 0);
+    numericId = (Math.abs(hash) % 1000000) + 1; // Ensure it's positive and reasonable size
+  }
+
   return {
     id: dbRoom.room_id_web, // Use room_id_web as frontend ID
+    numericId: numericId, // Numeric ID derived from UUID for blockchain calls
     name: dbRoom.name,
     symbol: dbRoom.symbol,
     status: dbRoom.status || "waiting",

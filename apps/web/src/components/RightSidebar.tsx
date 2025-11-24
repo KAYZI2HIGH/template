@@ -13,6 +13,8 @@ interface RightSidebarProps {
   hasJoinedRoom: boolean;
   isViewingOwnedRoom?: boolean;
   hasUserPredictedInRoom?: boolean;
+  isLoadingRooms?: boolean;
+  isLoadingPredictions?: boolean;
   onStakeChange: (value: string) => void;
   onPredictDirection: (direction: "UP" | "DOWN") => void;
   onStartRoom?: () => void;

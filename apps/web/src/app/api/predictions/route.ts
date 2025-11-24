@@ -20,13 +20,17 @@ async function transformPrediction(
   dbPrediction: any,
   room: any
 ): Promise<UserPrediction> {
+  // If room not found, use prediction data to create a fallback
+  const roomName = room?.name || "Unknown Room";
+  const roomId = room?.room_id_web || `room-${dbPrediction.room_id}`;
+
   return {
     id: parseInt(dbPrediction.id),
-    name: `${room.name} - ${dbPrediction.direction}`,
+    name: `${roomName} - ${dbPrediction.direction}`,
     status: dbPrediction.outcome === "PENDING" ? "active" : "completed",
     prediction: dbPrediction.direction as "UP" | "DOWN",
     stake: `${dbPrediction.stake_amount} cUSD`,
-    timeRemaining: room.duration_minutes
+    timeRemaining: room?.duration_minutes
       ? `${room.duration_minutes} minutes`
       : "Unknown",
     outcome:
@@ -38,7 +42,7 @@ async function transformPrediction(
       : undefined,
     players: 0, // Will update when needed
     playersJoined: 0, // Will update when needed
-    roomId: room.room_id_web,
+    roomId: roomId,
   };
 }
 

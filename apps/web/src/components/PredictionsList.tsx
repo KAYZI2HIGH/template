@@ -1,22 +1,32 @@
 "use client";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ChevronRight, Zap } from "lucide-react";
+import { ChevronRight, Zap, Loader } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserPrediction } from "@/lib/types";
 
 interface PredictionsListProps {
   predictions: UserPrediction[];
+  isLoading?: boolean;
   onViewDetails: (predictionId: number) => void;
 }
 
 export function PredictionsList({
   predictions,
+  isLoading = false,
   onViewDetails,
 }: PredictionsListProps) {
   return (
     <ScrollArea className="flex-1 p-4">
       <div className="space-y-3 pr-4">
-        {predictions.length === 0 ? (
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center gap-4 py-8">
+            <Loader
+              size={40}
+              className="text-green-400 animate-spin"
+            />
+            <p className="text-xs text-gray-400">Loading predictions...</p>
+          </div>
+        ) : predictions.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-4 py-8">
             <Zap
               size={48}

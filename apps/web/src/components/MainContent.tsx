@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Plus } from "lucide-react";
+import { Search, Plus, Loader } from "lucide-react";
 import Image from "next/image";
 import Logo from "@/components/Logo";
 import { RoomCard } from "./RoomCard";
@@ -27,6 +27,8 @@ import { AVAILABLE_STOCKS } from "@/lib/stocks";
 
 interface MainContentProps {
   rooms: Room[];
+  myRooms: Room[];
+  isLoading?: boolean;
   onJoinRoom: (roomId: string) => void;
   onViewOwnedRoomDetails?: (roomId: string) => void;
   onCreateRoom?: (roomData: {
@@ -39,6 +41,8 @@ interface MainContentProps {
 
 export function MainContent({
   rooms,
+  myRooms,
+  isLoading = false,
   onJoinRoom,
   onViewOwnedRoomDetails,
   onCreateRoom,
@@ -53,10 +57,9 @@ export function MainContent({
     minStake: "",
   });
 
-  // Separate all rooms from my rooms (created by current user)
-  const myRooms = rooms.filter((room) => room.ownerId === "current-user-id");
+  // Use myRooms passed from parent, calculate public rooms as all - mine
   const allPublicRooms = rooms.filter(
-    (room) => !room.ownerId || room.ownerId !== "current-user-id"
+    (room) => !myRooms.find((myRoom) => myRoom.id === room.id)
   );
 
   // Filter rooms based on search query
@@ -172,7 +175,15 @@ export function MainContent({
 
         {/* Rooms List */}
         <div className="space-y-4">
-          {displayedRooms.length === 0 ? (
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center gap-4 py-12">
+              <Loader
+                size={40}
+                className="text-green-400 animate-spin"
+              />
+              <p className="text-sm text-gray-400">Loading rooms...</p>
+            </div>
+          ) : displayedRooms.length === 0 ? (
             <div className="text-center py-12 text-gray-400">
               <p className="text-sm">
                 {searchQuery
