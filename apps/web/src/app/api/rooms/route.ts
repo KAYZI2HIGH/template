@@ -104,6 +104,7 @@ async function transformRoom(dbRoom: any, predictions: any[]): Promise<Room> {
   // NOTE: ends_at is stored as "timestamp without time zone" in DB, so treat as UTC when parsing
   // NOTE: ends_at is ONLY set when room is started
   let endingTime: number | undefined;
+  let secondsRemaining: number = 0;
   let roomStatus = dbRoom.status;
 
   if (dbRoom.ends_at) {
@@ -120,11 +121,12 @@ async function transformRoom(dbRoom: any, predictions: any[]): Promise<Room> {
 
     if (secondsPastEnd >= durationSeconds) {
       roomStatus = "completed";
+      secondsRemaining = 0;
       console.log(
         `✅ Room ${dbRoom.room_id_web}: COMPLETED (${secondsPastEnd}s >= ${durationSeconds}s duration)`
       );
     } else {
-      const secondsRemaining = durationSeconds - secondsPastEnd;
+      secondsRemaining = durationSeconds - secondsPastEnd;
       console.log(
         `⏱️  Room ${dbRoom.room_id_web}: STARTED (${secondsPastEnd}s elapsed, ${secondsRemaining}s remaining)`
       );
@@ -151,6 +153,7 @@ async function transformRoom(dbRoom: any, predictions: any[]): Promise<Room> {
     down: downCount,
     ownerId: dbRoom.creator_wallet_address,
     ending_time: endingTime,
+    secondsRemaining, // Backend-calculated time remaining (0 if waiting or completed)
   };
 }
 

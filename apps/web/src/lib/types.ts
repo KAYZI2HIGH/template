@@ -13,6 +13,7 @@ export interface Room {
   down: number;
   ownerId?: string; // User ID of room owner
   ending_time?: number; // Unix timestamp (seconds) when room expires
+  secondsRemaining?: number; // Backend-calculated seconds left (0 if waiting/completed)
 }
 
 export interface UserPrediction {

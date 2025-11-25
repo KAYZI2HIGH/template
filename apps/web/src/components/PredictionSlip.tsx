@@ -50,13 +50,15 @@ export function PredictionSlip({
     }
   }, [room?.roomStatus]);
 
-  // Update countdown timer every second using ending_time from server
+  // Update countdown timer every second using secondsRemaining from server
   useEffect(() => {
     if (!room) return;
 
     const updateTimer = () => {
-      const secondsRemaining = getSecondsRemaining(room.ending_time);
-      const formatted = formatSecondsToTime(secondsRemaining);
+      // Use server-calculated secondsRemaining, decrement by 1 each second
+      let remaining = room.secondsRemaining || 0;
+      const secondsToDisplay = Math.max(0, remaining - 1);
+      const formatted = formatSecondsToTime(secondsToDisplay);
       setTimeRemaining(formatted);
     };
 
@@ -64,7 +66,7 @@ export function PredictionSlip({
     const interval = setInterval(updateTimer, 1000);
 
     return () => clearInterval(interval);
-  }, [room?.ending_time]);
+  }, [room?.secondsRemaining]);
 
   /**
    * INTELLIGENT CONDITIONAL RENDERING LOGIC

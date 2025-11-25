@@ -41,11 +41,13 @@ export function RoomCard({
     );
   }, [room.roomStatus]);
 
-  // Update countdown timer every second using ending_time from server
+  // Update countdown timer every second using secondsRemaining from server
   useEffect(() => {
     const updateTimer = () => {
-      const secondsRemaining = getSecondsRemaining(room.ending_time);
-      const formatted = formatSecondsToTime(secondsRemaining);
+      // Use server-calculated secondsRemaining, decrement by 1 each second
+      let remaining = room.secondsRemaining || 0;
+      const secondsToDisplay = Math.max(0, remaining - 1);
+      const formatted = formatSecondsToTime(secondsToDisplay);
       setTimeRemaining(formatted);
     };
 
@@ -53,7 +55,7 @@ export function RoomCard({
     const interval = setInterval(updateTimer, 1000);
 
     return () => clearInterval(interval);
-  }, [room.ending_time]);
+  }, [room.secondsRemaining]);
 
   const getStatusColor = (status: "waiting" | "started" | "completed") => {
     switch (status) {
