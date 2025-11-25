@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,7 @@ import Logo from "@/components/Logo";
 import { RoomCard } from "./RoomCard";
 import { Room } from "@/lib/types";
 import { AVAILABLE_STOCKS } from "@/lib/stocks";
+import { useAvailableStocks } from "@/hooks/useRoomQueries";
 
 interface MainContentProps {
   rooms: Room[];
@@ -56,6 +57,10 @@ export function MainContent({
     timeDuration: "",
     minStake: "",
   });
+
+  // Fetch available stocks using React Query
+  const { data: stocksResponse, isLoading: loadingStocks } = useAvailableStocks();
+  const availableStocks = stocksResponse?.stocks || AVAILABLE_STOCKS;
 
   // Use myRooms passed from parent, calculate public rooms as all - mine
   const allPublicRooms = rooms.filter(
@@ -248,20 +253,34 @@ export function MainContent({
                 }
               >
                 <SelectTrigger className="bg-[#1E2943] border-[#1E2943] text-white">
-                  <SelectValue placeholder="Select a stock..." />
+                  <SelectValue
+                    placeholder={
+                      loadingStocks ? "Loading stocks..." : "Select a stock..."
+                    }
+                  />
                 </SelectTrigger>
                 <SelectContent>
-                  {AVAILABLE_STOCKS.map((stock) => (
-                    <SelectItem
-                      key={stock.symbol}
-                      value={stock.symbol}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono">{stock.symbol}</span>
-                        <span className="text-gray-400">- {stock.name}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
+                  {loadingStocks ? (
+                    <div className="p-2 text-center text-sm text-gray-400">
+                      Loading stocks...
+                    </div>
+                  ) : availableStocks.length === 0 ? (
+                    <div className="p-2 text-center text-sm text-gray-400">
+                      No stocks available
+                    </div>
+                  ) : (
+                    availableStocks.map((stock: any) => (
+                      <SelectItem
+                        key={stock.symbol}
+                        value={stock.symbol}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono">{stock.symbol}</span>
+                          <span className="text-gray-400">- {stock.name}</span>
+                        </div>
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -282,6 +301,7 @@ export function MainContent({
                   <SelectValue placeholder="Select duration..." />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="1h">1 Hour (DEMO)</SelectItem>
                   <SelectItem value="1 week">1 Week</SelectItem>
                   <SelectItem value="2 weeks">2 Weeks</SelectItem>
                   <SelectItem value="1 month">1 Month</SelectItem>

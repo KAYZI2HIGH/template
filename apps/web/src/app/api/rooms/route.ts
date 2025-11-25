@@ -14,10 +14,56 @@ const supabase = createClient(
 );
 
 /**
+ * Predefined durations to avoid parsing errors
+ */
+const VALID_DURATIONS: Record<string, number> = {
+  "30m": 30,
+  "1h": 60,
+  "1h 30m": 90,
+  "2h": 120,
+  "3h": 180,
+  "4h": 240,
+  "6h": 360,
+  "12h": 720,
+  "24h": 1440,
+};
+
+/**
+ * Parse and validate duration string
+ * @param durationStr e.g., "2h", "30m", "1h 30m"
+ * @returns minutes, or null if invalid
+ */
+function parseDuration(durationStr: string): number | null {
+  if (!durationStr) return null;
+
+  const trimmed = durationStr.trim();
+
+  // Check if it's a predefined duration
+  if (VALID_DURATIONS[trimmed]) {
+    return VALID_DURATIONS[trimmed];
+  }
+
+  // Try to parse custom format
+  let totalMinutes = 0;
+  const hoursMatch = trimmed.match(/(\\d+)h/);
+  const minsMatch = trimmed.match(/(\\d+)m/);
+
+  if (hoursMatch) totalMinutes += parseInt(hoursMatch[1]) * 60;
+  if (minsMatch) totalMinutes += parseInt(minsMatch[1]);
+
+  // Validate: must have at least one match and result in 1-1440 minutes (1 min - 24 hours)
+  if ((hoursMatch || minsMatch) && totalMinutes >= 1 && totalMinutes <= 1440) {
+    return totalMinutes;
+  }
+
+  return null;
+}
+
+/**
  * Format duration in minutes to readable string (e.g., "2h 30m remaining")
  */
 function formatTimeRemaining(durationMinutes: number): string {
-  if (!durationMinutes) return "Unknown";
+  if (!durationMinutes || durationMinutes <= 0) return "Unknown";
 
   const hours = Math.floor(durationMinutes / 60);
   const mins = durationMinutes % 60;
@@ -43,10 +89,46 @@ async function transformRoom(dbRoom: any, predictions: any[]): Promise<Room> {
   // This ensures consistency across calls
   let numericId = 1;
   if (dbRoom.id) {
-    const hash = dbRoom.id.split("").reduce((acc, char) => {
+    const hash = dbRoom.id.split("").reduce((acc: number, char: string) => {
       return (acc << 5) - acc + char.charCodeAt(0);
     }, 0);
     numericId = (Math.abs(hash) % 1000000) + 1; // Ensure it's positive and reasonable size
+  }
+
+  // NOTE: Price fetching moved to frontend RoomCard component
+  // to avoid blocking API responses and showing "Loading..." forever
+  // Backend just returns price placeholder; frontend will fetch actual price
+  const priceDisplay = "$0.00"; // Placeholder - frontend will fetch actual price
+
+  // Calculate ending_time from database ends_at field
+  // NOTE: ends_at is stored as "timestamp without time zone" in DB, so treat as UTC when parsing
+  // NOTE: ends_at is ONLY set when room is started
+  let endingTime: number | undefined;
+  let roomStatus = dbRoom.status;
+
+  if (dbRoom.ends_at) {
+    // Parse timestamp as UTC (append Z to ensure UTC interpretation)
+    const endsAtStr = String(dbRoom.ends_at);
+    const endsAtWithZ = endsAtStr.includes("T") ? endsAtStr : endsAtStr + "Z";
+    endingTime = Math.floor(new Date(endsAtWithZ).getTime() / 1000);
+
+    // Check if room has ended: (now - ends_at) >= 60 (duration in seconds)
+    const now = Math.floor(Date.now() / 1000);
+    const secondsPastEnd = now - endingTime; // Positive value, increasing over time
+
+    const durationSeconds = (dbRoom.duration_minutes || 0) * 60;
+
+    if (secondsPastEnd >= durationSeconds) {
+      roomStatus = "completed";
+      console.log(
+        `✅ Room ${dbRoom.room_id_web}: COMPLETED (${secondsPastEnd}s >= ${durationSeconds}s duration)`
+      );
+    } else {
+      const secondsRemaining = durationSeconds - secondsPastEnd;
+      console.log(
+        `⏱️  Room ${dbRoom.room_id_web}: STARTED (${secondsPastEnd}s elapsed, ${secondsRemaining}s remaining)`
+      );
+    }
   }
 
   return {
@@ -54,8 +136,8 @@ async function transformRoom(dbRoom: any, predictions: any[]): Promise<Room> {
     numericId: numericId, // Numeric ID derived from UUID for blockchain calls
     name: dbRoom.name,
     symbol: dbRoom.symbol,
-    status: dbRoom.status || "waiting",
-    roomStatus: (dbRoom.status || "waiting") as
+    status: roomStatus || "waiting",
+    roomStatus: (roomStatus || "waiting") as
       | "waiting"
       | "started"
       | "completed",
@@ -63,11 +145,12 @@ async function transformRoom(dbRoom: any, predictions: any[]): Promise<Room> {
     timeDuration: `${Math.floor(dbRoom.duration_minutes / 60)}h ${
       dbRoom.duration_minutes % 60
     }m`.replace(/^0h /, ""),
-    price: "₦0.00", // TODO: Fetch from oracle
+    price: priceDisplay,
     minStake: dbRoom.min_stake ? parseInt(dbRoom.min_stake) : 0,
     up: upCount,
     down: downCount,
     ownerId: dbRoom.creator_wallet_address,
+    ending_time: endingTime,
   };
 }
 
@@ -123,12 +206,19 @@ export async function POST(request: Request) {
       .toString(36)
       .substr(2, 9)}`;
 
-    // Parse duration (e.g., "2h" -> 120 minutes, "30m" -> 30 minutes)
-    let durationMinutes = 0;
-    const hoursMatch = timeDuration.match(/(\d+)h/);
-    const minsMatch = timeDuration.match(/(\d+)m/);
-    if (hoursMatch) durationMinutes += parseInt(hoursMatch[1]) * 60;
-    if (minsMatch) durationMinutes += parseInt(minsMatch[1]);
+    // Validate duration format
+    const durationMinutes = parseDuration(timeDuration);
+    if (!durationMinutes || durationMinutes <= 0) {
+      return Response.json(
+        {
+          error: `Invalid duration: "${timeDuration}". Must be one of: ${Object.keys(
+            VALID_DURATIONS
+          ).join(", ")}`,
+          validDurations: Object.keys(VALID_DURATIONS),
+        },
+        { status: 400 }
+      );
+    }
 
     // Create room in database
     const { data: newRoom, error } = await supabase

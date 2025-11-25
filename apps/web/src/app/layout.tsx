@@ -52,13 +52,13 @@ export default function RootLayout({
       >
         {/* Navbar is included on all pages */}
         <div className="relative flex min-h-screen flex-col bg-[#10141E]">
-          <WalletProvider>
-            <AuthProvider>
-              <Providers>
+          <Providers>
+            <WalletProvider>
+              <AuthProvider>
                 <main className="flex-1">{children}</main>
-              </Providers>
-            </AuthProvider>
-          </WalletProvider>
+              </AuthProvider>
+            </WalletProvider>
+          </Providers>
           <Toaster
             position="top-right"
             theme="dark"

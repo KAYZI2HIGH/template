@@ -49,12 +49,42 @@ export async function PUT(
       );
     }
 
-    // Update room status to "started"
+    // Calculate end time: now + duration_minutes
+    // Store in UTC format (without timezone suffix since DB is "timestamp without time zone")
+    const startTime = new Date();
+    const endTime = new Date(
+      startTime.getTime() + room.duration_minutes * 60 * 1000
+    );
+
+    // Convert to UTC strings (the DB will store them as-is)
+    const startUtcString = startTime.toISOString().replace("Z", "");
+    const endUtcString = endTime.toISOString().replace("Z", "");
+
+    console.log(`🚀 Starting room ${params.id}:`);
+    console.log(`   Duration: ${room.duration_minutes} minutes`);
+    console.log(
+      `   Start time: ${startUtcString} UTC (${Math.floor(
+        startTime.getTime() / 1000
+      )} epoch)`
+    );
+    console.log(
+      `   End time: ${endUtcString} UTC (${Math.floor(
+        endTime.getTime() / 1000
+      )} epoch)`
+    );
+    console.log(
+      `   Seconds from now: ${Math.floor(
+        (endTime.getTime() - Date.now()) / 1000
+      )}`
+    );
+
+    // Update room status to "started" with calculated end time
     const { data: updatedRoom, error: updateError } = await supabase
       .from("rooms")
       .update({
         status: "started",
-        starts_at: new Date().toISOString(),
+        starts_at: startUtcString,
+        ends_at: endUtcString,
       })
       .eq("id", room.id)
       .select()

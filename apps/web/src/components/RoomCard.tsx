@@ -1,5 +1,8 @@
 "use client";
+import { useEffect, useState } from "react";
 import { Room } from "@/lib/types";
+import { getSecondsRemaining, formatSecondsToTime } from "@/lib/app-utils";
+import { useStockPrice } from "@/hooks/useRoomQueries";
 
 interface RoomCardProps {
   room: Room;
@@ -9,6 +12,12 @@ interface RoomCardProps {
   onViewDetails?: (roomId: string) => void;
 }
 
+type RoomStatus = "waiting" | "started" | "completed";
+
+function isValidRoomStatus(status: unknown): status is RoomStatus {
+  return status === "waiting" || status === "started" || status === "completed";
+}
+
 export function RoomCard({
   room,
   roomId,
@@ -16,7 +25,37 @@ export function RoomCard({
   onJoin,
   onViewDetails,
 }: RoomCardProps) {
-  const getStatusColor = (status?: "waiting" | "started" | "completed") => {
+  const [timeRemaining, setTimeRemaining] = useState<string>("");
+  const [displayStatus, setDisplayStatus] = useState<RoomStatus>(() => {
+    return isValidRoomStatus(room.roomStatus) ? room.roomStatus : "waiting";
+  });
+
+  // Fetch stock price using React Query
+  const { data: priceData } = useStockPrice(room.symbol);
+  const displayPrice = priceData ? `$${priceData.toFixed(2)}` : "$0.00";
+
+  // Trust the server status - no client-side recalculation
+  useEffect(() => {
+    setDisplayStatus(
+      isValidRoomStatus(room.roomStatus) ? room.roomStatus : "waiting"
+    );
+  }, [room.roomStatus]);
+
+  // Update countdown timer every second using ending_time from server
+  useEffect(() => {
+    const updateTimer = () => {
+      const secondsRemaining = getSecondsRemaining(room.ending_time);
+      const formatted = formatSecondsToTime(secondsRemaining);
+      setTimeRemaining(formatted);
+    };
+
+    updateTimer(); // Initial call
+    const interval = setInterval(updateTimer, 1000);
+
+    return () => clearInterval(interval);
+  }, [room.ending_time]);
+
+  const getStatusColor = (status: "waiting" | "started" | "completed") => {
     switch (status) {
       case "waiting":
         return "bg-yellow-500/20 text-yellow-300";
@@ -29,6 +68,12 @@ export function RoomCard({
     }
   };
 
+  // Show time remaining for started rooms, duration for waiting rooms
+  const displayTime =
+    displayStatus === "started" && timeRemaining
+      ? `${timeRemaining} remaining`
+      : room.time;
+
   return (
     <div className="bg-[#0F1729] border border-[#1E2943] rounded p-4 hover:border-green-400 transition-colors">
       <div className="flex justify-between items-start mb-3">
@@ -40,12 +85,16 @@ export function RoomCard({
             </span>
           </div>
           <p className="text-xs text-muted-foreground">
-            {room.time} • {room.price}
+            {displayTime} • {displayPrice}
           </p>
         </div>
         <div className="flex flex-col gap-1 items-end ml-2">
-          <span className="bg-green-500/20 text-green-300 text-xs px-2 py-1 rounded whitespace-nowrap">
-            {room.status}
+          <span
+            className={`text-xs px-2 py-1 rounded whitespace-nowrap ${getStatusColor(
+              displayStatus
+            )}`}
+          >
+            {displayStatus}
           </span>
         </div>
       </div>
@@ -64,9 +113,14 @@ export function RoomCard({
         ) : (
           <button
             onClick={() => onJoin?.(roomId)}
-            className="bg-green-500 hover:bg-green-600 transition-colors text-white text-xs px-3 py-1 rounded font-medium"
+            disabled={displayStatus !== "waiting"}
+            className="bg-green-500 hover:bg-green-600 disabled:bg-gray-500 disabled:cursor-not-allowed transition-colors text-white text-xs px-3 py-1 rounded font-medium"
           >
-            Join
+            {displayStatus === "waiting"
+              ? "Join"
+              : displayStatus === "started"
+              ? "In Progress"
+              : "Completed"}
           </button>
         )}
       </div>

@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useQueryClientInstance } from "@/components/Providers";
+import { roomQueryKeys, predictionQueryKeys } from "@/hooks/useRoomQueries";
 import { LeftSidebar } from "@/components/LeftSidebar";
 import { MainContent } from "@/components/MainContent";
 import { RightSidebar } from "@/components/RightSidebar";
@@ -22,11 +24,13 @@ import {
   useStartRoom as useStartRoomMutation,
   useCreatePrediction as useCreatePredictionMutation,
 } from "@/hooks/useRoomQueries";
+import { fetchStockPrice } from "@/lib/app-utils";
 
 export default function Home() {
   const { address, isConnected } = useAccount();
   const { isAuthenticated, user } = useAuth();
   const contractClients = useContractClients();
+  const queryClient = useQueryClientInstance();
 
   // ============================================================================
   // REACT QUERY HOOKS FOR DATA FETCHING
@@ -48,6 +52,21 @@ export default function Home() {
   const createRoomMutation = useCreateRoomMutation();
   const startRoomMutation = useStartRoomMutation();
   const createPredictionMutation = useCreatePredictionMutation();
+
+  // ============================================================================
+  // FORCE REFETCH ON AUTH CHANGE
+  // ============================================================================
+
+  useEffect(() => {
+    if (isAuthenticated && user?.wallet_address) {
+      console.log(
+        `\n🔄 [page.tsx] Auth changed - forcing rooms refetch for ${user.wallet_address}`
+      );
+      // Force refetch of all rooms and predictions when user logs in
+      queryClient.invalidateQueries({ queryKey: roomQueryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: predictionQueryKeys.lists() });
+    }
+  }, [isAuthenticated, user?.wallet_address, queryClient]);
 
   // ============================================================================
   // UI STATE
@@ -221,6 +240,28 @@ export default function Home() {
 
       const stakeAmount = parseFloat(stake);
 
+      // 🎯 FRONTEND LOGGING: Show prediction details
+      console.log(
+        `%c🎯 PLACING PREDICTION`,
+        "color: #ff00ff; font-weight: bold; font-size: 14px"
+      );
+      console.log(`%c   Room: ${selectedRoom.name}`, "color: #00ffff");
+      console.log(
+        `%c   Direction: ${direction} (${
+          direction === "UP" ? "bullish ⬆️" : "bearish ⬇️"
+        })`,
+        "color: #ffff00"
+      );
+      console.log(`%c   Stake: ${stake} cUSD`, "color: #00ff00");
+      console.log(
+        `%c   Room Status: ${selectedRoom.roomStatus}`,
+        "color: #ff6600"
+      );
+      console.log(
+        `%c   Players before: UP=${selectedRoom.up}, DOWN=${selectedRoom.down}`,
+        "color: #cccccc"
+      );
+
       // Double-check stake is valid
       if (!stakeAmount || isNaN(stakeAmount) || stakeAmount <= 0) {
         throw new Error(
@@ -316,24 +357,42 @@ export default function Home() {
       setTxLoading(true);
       setTxHash(null);
 
-      // For demo purposes, use a mock starting price
-      // In production, this would fetch from a price oracle
-      const mockStartingPrice = 250.5;
+      // Fetch actual starting price from FMP API
+      const startingPrice = await fetchStockPrice(selectedRoom.symbol);
 
-      // Validate price
-      if (
-        !mockStartingPrice ||
-        isNaN(mockStartingPrice) ||
-        mockStartingPrice <= 0
-      ) {
+      if (!startingPrice || isNaN(startingPrice) || startingPrice <= 0) {
         throw new Error(
-          `Invalid starting price: "${mockStartingPrice}" is not a valid number`
+          `Failed to fetch stock price for ${selectedRoom.symbol}`
         );
       }
 
+      // 🎯 FRONTEND LOGGING: Show time calculation
+      const now = Math.floor(Date.now() / 1000);
+      const durationSeconds = selectedRoom.timeDuration
+        ? parseInt(selectedRoom.timeDuration) * 60
+        : 3600;
+      const endTime = now + durationSeconds;
+
+      console.log(
+        `%c🚀 STARTING ROOM: ${selectedRoom.name}`,
+        "color: #00ff00; font-weight: bold; font-size: 14px"
+      );
+      console.log(
+        `%c   Duration: ${
+          selectedRoom.timeDuration || "1h"
+        } (${durationSeconds}s)`,
+        "color: #ffff00"
+      );
+      console.log(`%c   Start Time: ${now} (epoch)`, "color: #00ffff");
+      console.log(`%c   End Time: ${endTime} (epoch)`, "color: #ff00ff");
+      console.log(
+        `%c   Countdown: ${durationSeconds}s remaining`,
+        "color: #00ff00"
+      );
+
       // Step 1: Start room on smart contract
       const loadingToastId = toast.loading(
-        `Starting room at price ₦${mockStartingPrice} on blockchain...`
+        `Starting room at price $${startingPrice.toFixed(2)} on blockchain...`
       );
 
       const roomIdNumber = selectedRoom.numericId || parseInt(selectedRoom.id);
@@ -350,12 +409,15 @@ export default function Home() {
       const txHash = await startRoom(
         contractClients.walletClient,
         roomIdNumber,
-        mockStartingPrice
+        startingPrice
       );
 
       setTxHash(txHash);
       toast.success("Room started on blockchain!", {
-        description: `Hash: ${txHash.slice(0, 10)}... at ₦${mockStartingPrice}`,
+        description: `Hash: ${txHash.slice(
+          0,
+          10
+        )}... at $${startingPrice.toFixed(2)}`,
         id: loadingToastId,
       });
 
@@ -367,7 +429,7 @@ export default function Home() {
       await startRoomMutation.mutateAsync(selectedRoom.id);
 
       toast.success("Room started!", {
-        description: `Game is now in progress at ₦${mockStartingPrice}`,
+        description: `Game is now in progress at $${startingPrice.toFixed(2)}`,
         id: dbLoadingToastId,
       });
     } catch (error) {

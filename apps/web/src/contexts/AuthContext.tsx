@@ -7,6 +7,9 @@ import {
   useState,
   useCallback,
 } from "react";
+import { useQueryClientInstance } from "@/components/Providers";
+import { roomQueryKeys, predictionQueryKeys } from "@/hooks/useRoomQueries";
+import { clearAuthTokens } from "@/lib/api-client";
 
 export interface User {
   id: string;
@@ -41,6 +44,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
+  // Get queryClient instance for cache invalidation
+  const queryClient = useQueryClientInstance();
+
   // Load stored auth token on mount
   useEffect(() => {
     const storedToken = localStorage.getItem("auth_token");
@@ -59,56 +65,143 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const login = useCallback(async (walletAddress: string) => {
-    setIsLoading(true);
-    setError(null);
+  const login = useCallback(
+    async (walletAddress: string) => {
+      setIsLoading(true);
+      setError(null);
 
-    try {
-      // Call backend to get/create user
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ wallet_address: walletAddress.toLowerCase() }),
-      });
+      try {
+        // Call backend to get/create user
+        const response = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ wallet_address: walletAddress.toLowerCase() }),
+        });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Login failed");
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Login failed");
+        }
+
+        const data = await response.json();
+        const newWalletAddress = data.user.wallet_address;
+        const currentWalletAddress = user?.wallet_address;
+
+        // If user wallet address changed, do complete cache clear
+        if (currentWalletAddress && currentWalletAddress !== newWalletAddress) {
+          console.log(`\n🔄 ACCOUNT SWITCH DETECTED:`);
+          console.log(`   From: ${currentWalletAddress}`);
+          console.log(`   To: ${newWalletAddress}`);
+          console.log(`🗑️  Clearing ALL previous user data...`);
+
+          // Nuclear option - clear entire cache
+          queryClient.clear();
+          console.log("✅ [1/2] React Query cache cleared");
+
+          // Clear localStorage AND sessionStorage
+          localStorage.clear();
+          sessionStorage.clear();
+          console.log("✅ [2/2] Storage cleared");
+        } else if (!currentWalletAddress) {
+          // First time login
+          console.log(`\n🔐 FIRST LOGIN: ${newWalletAddress}`);
+          console.log(`🗑️  Clearing any residual cache...`);
+          queryClient.clear();
+          console.log("✅ Cache cleared");
+        }
+
+        // Set new user
+        console.log(`📝 Setting new user data...`);
+        setUser(data.user);
+        setAuthToken(data.access_token);
+        setIsAuthenticated(true);
+
+        // Store in localStorage
+        console.log(`💾 Storing auth in localStorage...`);
+        localStorage.setItem("auth_token", data.access_token);
+        localStorage.setItem("auth_user", JSON.stringify(data.user));
+
+        console.log(
+          `✅✅✅ LOGIN COMPLETE: ${newWalletAddress} - Ready to fetch data ✅✅✅\n`
+        );
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : "Authentication failed";
+        setError(errorMessage);
+        console.error("Login error:", err);
+        setUser(null);
+        setAuthToken(null);
+        setIsAuthenticated(false);
+      } finally {
+        setIsLoading(false);
       }
-
-      const data = await response.json();
-
-      setUser(data.user);
-      setAuthToken(data.access_token);
-      setIsAuthenticated(true);
-
-      // Store in localStorage
-      localStorage.setItem("auth_token", data.access_token);
-      localStorage.setItem("auth_user", JSON.stringify(data.user));
-
-      console.log("✅ User logged in:", data.user.wallet_address);
-    } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Authentication failed";
-      setError(errorMessage);
-      console.error("Login error:", err);
-      setUser(null);
-      setAuthToken(null);
-      setIsAuthenticated(false);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+    },
+    [user, queryClient]
+  );
 
   const logout = useCallback(() => {
+    const previousWallet = user?.wallet_address;
+    console.log(`🚪 LOGOUT INITIATED for ${previousWallet}`);
+
+    // 1. NUKE React Query cache entirely
+    console.log("🗑️  [1/5] Nuking React Query cache completely...");
+    try {
+      queryClient.clear();
+      console.log("✅ React Query cache cleared");
+    } catch (e) {
+      console.error("⚠️  Error clearing React Query cache:", e);
+    }
+
+    // 2. NUKE localStorage completely
+    console.log("🗑️  [2/5] Clearing localStorage...");
+    try {
+      localStorage.clear();
+      console.log("✅ localStorage cleared");
+    } catch (e) {
+      console.error("⚠️  Error clearing localStorage:", e);
+    }
+
+    // 3. NUKE sessionStorage
+    console.log("🗑️  [3/5] Clearing sessionStorage...");
+    try {
+      sessionStorage.clear();
+      console.log("✅ sessionStorage cleared");
+    } catch (e) {
+      console.error("⚠️  Error clearing sessionStorage:", e);
+    }
+
+    // 4. NUKE in-memory state
+    console.log("🗑️  [4/5] Clearing in-memory auth state...");
     setUser(null);
     setAuthToken(null);
     setIsAuthenticated(false);
     setError(null);
-    localStorage.removeItem("auth_token");
-    localStorage.removeItem("auth_user");
-    console.log("🚪 User logged out");
-  }, []);
+    console.log("✅ In-memory state cleared");
+
+    // 5. Explicit removal of known auth keys (belt and suspenders approach)
+    console.log("🗑️  [5/5] Explicit removal of auth keys...");
+    const authKeys = [
+      "auth_token",
+      "auth_user",
+      "access_token",
+      "user",
+      "wallet",
+      "connected_wallet",
+    ];
+    authKeys.forEach((key) => {
+      try {
+        localStorage.removeItem(key);
+        sessionStorage.removeItem(key);
+      } catch (e) {
+        // Ignore errors
+      }
+    });
+    console.log("✅ Auth keys explicitly removed");
+
+    console.log(
+      `✅✅✅ LOGOUT COMPLETE for ${previousWallet} - ALL CACHE NUKED ✅✅✅`
+    );
+  }, [user?.wallet_address, queryClient]);
 
   return (
     <AuthContext.Provider
