@@ -7,9 +7,9 @@ import {
   useState,
   useCallback,
 } from "react";
+import { useAccount } from "wagmi";
 import { useQueryClientInstance } from "@/components/Providers";
 import { roomQueryKeys, predictionQueryKeys } from "@/hooks/useRoomQueries";
-import { clearAuthTokens } from "@/lib/api-client";
 
 export interface User {
   id: string;
@@ -29,48 +29,48 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (address: string) => Promise<void>;
-  logout: () => void;
-  authToken: string | null;
   error: string | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const { address, isConnected } = useAccount();
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [authToken, setAuthToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-
-  // Get queryClient instance for cache invalidation
   const queryClient = useQueryClientInstance();
 
-  // Load stored auth token on mount
+  // When wallet connects, check/create user in DB
   useEffect(() => {
-    const storedToken = localStorage.getItem("auth_token");
-    const storedUser = localStorage.getItem("auth_user");
-
-    if (storedToken && storedUser) {
-      try {
-        setAuthToken(storedToken);
-        setUser(JSON.parse(storedUser));
-        setIsAuthenticated(true);
-      } catch (err) {
-        console.error("Failed to load stored auth:", err);
-        localStorage.removeItem("auth_token");
-        localStorage.removeItem("auth_user");
-      }
+    if (isConnected && address) {
+      checkOrCreateUser(address);
     }
-  }, []);
+  }, [isConnected, address]);
 
-  const login = useCallback(
+  // When wallet disconnects, clear user data
+  useEffect(() => {
+    if (!isConnected) {
+      setUser(null);
+      setError(null);
+      // Clear React Query cache
+      queryClient.removeQueries({ queryKey: predictionQueryKeys.all });
+      queryClient.removeQueries({ queryKey: roomQueryKeys.lists() });
+      queryClient.clear();
+      console.log(`✅ Wallet disconnected - auth cleared`);
+    }
+  }, [isConnected, queryClient]);
+
+  const checkOrCreateUser = useCallback(
     async (walletAddress: string) => {
+      if (!walletAddress) return;
+
       setIsLoading(true);
       setError(null);
 
       try {
+        console.log(`\n🔐 [Auth] Checking/creating user for ${walletAddress}`);
+
         // Call backend to get/create user
         const response = await fetch("/api/auth/login", {
           method: "POST",
@@ -84,124 +84,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         const data = await response.json();
-        const newWalletAddress = data.user.wallet_address;
-        const currentWalletAddress = user?.wallet_address;
-
-        // If user wallet address changed, do complete cache clear
-        if (currentWalletAddress && currentWalletAddress !== newWalletAddress) {
-          console.log(`\n🔄 ACCOUNT SWITCH DETECTED:`);
-          console.log(`   From: ${currentWalletAddress}`);
-          console.log(`   To: ${newWalletAddress}`);
-          console.log(`🗑️  Clearing ALL previous user data...`);
-
-          // Nuclear option - clear entire cache
-          queryClient.clear();
-          console.log("✅ [1/2] React Query cache cleared");
-
-          // Clear localStorage AND sessionStorage
-          localStorage.clear();
-          sessionStorage.clear();
-          console.log("✅ [2/2] Storage cleared");
-        } else if (!currentWalletAddress) {
-          // First time login
-          console.log(`\n🔐 FIRST LOGIN: ${newWalletAddress}`);
-          console.log(`🗑️  Clearing any residual cache...`);
-          queryClient.clear();
-          console.log("✅ Cache cleared");
-        }
-
-        // Set new user
-        console.log(`📝 Setting new user data...`);
-        setUser(data.user);
-        setAuthToken(data.access_token);
-        setIsAuthenticated(true);
-
-        // Store in localStorage
-        console.log(`💾 Storing auth in localStorage...`);
-        localStorage.setItem("auth_token", data.access_token);
-        localStorage.setItem("auth_user", JSON.stringify(data.user));
-
         console.log(
-          `✅✅✅ LOGIN COMPLETE: ${newWalletAddress} - Ready to fetch data ✅✅✅\n`
+          `✅ [Auth] User found/created: ${data.user.wallet_address}`
         );
+
+        // Store user in memory only (no tokens, no localStorage!)
+        setUser(data.user);
+
+        // Invalidate queries to fetch fresh data for this user
+        queryClient.invalidateQueries({ queryKey: roomQueryKeys.lists() });
+        queryClient.invalidateQueries({ queryKey: predictionQueryKeys.lists() });
+
+        console.log(`✅ [Auth] Ready to fetch user data\n`);
       } catch (err) {
         const errorMessage =
           err instanceof Error ? err.message : "Authentication failed";
         setError(errorMessage);
-        console.error("Login error:", err);
+        console.error("[Auth] Error:", err);
         setUser(null);
-        setAuthToken(null);
-        setIsAuthenticated(false);
       } finally {
         setIsLoading(false);
       }
     },
-    [user, queryClient]
+    [queryClient]
   );
 
-  const logout = useCallback(() => {
-    const previousWallet = user?.wallet_address;
-    console.log(`🚪 LOGOUT INITIATED for ${previousWallet}`);
-
-    // 1. NUKE React Query cache entirely
-    console.log("🗑️  [1/5] Nuking React Query cache completely...");
-    try {
-      queryClient.clear();
-      console.log("✅ React Query cache cleared");
-    } catch (e) {
-      console.error("⚠️  Error clearing React Query cache:", e);
-    }
-
-    // 2. NUKE localStorage completely
-    console.log("🗑️  [2/5] Clearing localStorage...");
-    try {
-      localStorage.clear();
-      console.log("✅ localStorage cleared");
-    } catch (e) {
-      console.error("⚠️  Error clearing localStorage:", e);
-    }
-
-    // 3. NUKE sessionStorage
-    console.log("🗑️  [3/5] Clearing sessionStorage...");
-    try {
-      sessionStorage.clear();
-      console.log("✅ sessionStorage cleared");
-    } catch (e) {
-      console.error("⚠️  Error clearing sessionStorage:", e);
-    }
-
-    // 4. NUKE in-memory state
-    console.log("🗑️  [4/5] Clearing in-memory auth state...");
-    setUser(null);
-    setAuthToken(null);
-    setIsAuthenticated(false);
-    setError(null);
-    console.log("✅ In-memory state cleared");
-
-    // 5. Explicit removal of known auth keys (belt and suspenders approach)
-    console.log("🗑️  [5/5] Explicit removal of auth keys...");
-    const authKeys = [
-      "auth_token",
-      "auth_user",
-      "access_token",
-      "user",
-      "wallet",
-      "connected_wallet",
-    ];
-    authKeys.forEach((key) => {
-      try {
-        localStorage.removeItem(key);
-        sessionStorage.removeItem(key);
-      } catch (e) {
-        // Ignore errors
-      }
-    });
-    console.log("✅ Auth keys explicitly removed");
-
-    console.log(
-      `✅✅✅ LOGOUT COMPLETE for ${previousWallet} - ALL CACHE NUKED ✅✅✅`
-    );
-  }, [user?.wallet_address, queryClient]);
+  // isAuthenticated = wallet is connected AND user data is loaded
+  const isAuthenticated = isConnected && !!user;
 
   return (
     <AuthContext.Provider
@@ -209,9 +118,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         isLoading,
         isAuthenticated,
-        login,
-        logout,
-        authToken,
         error,
       }}
     >
@@ -226,25 +132,4 @@ export function useAuth() {
     throw new Error("useAuth must be used within AuthProvider");
   }
   return context;
-}
-
-/**
- * Hook for auto-authenticating when wallet connects
- * Call this in a component that has access to useAccount from wagmi
- */
-export function useAutoAuth() {
-  const { login, isAuthenticated } = useAuth();
-
-  return async (address: string | undefined) => {
-    if (address && !isAuthenticated) {
-      try {
-        await login(address);
-        return true;
-      } catch (error) {
-        console.error("Auto-auth failed:", error);
-        return false;
-      }
-    }
-    return isAuthenticated;
-  };
 }

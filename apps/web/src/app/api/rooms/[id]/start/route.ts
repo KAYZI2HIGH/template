@@ -22,6 +22,17 @@ export async function PUT(
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Parse request body to get starting price
+    const body = await request.json();
+    const { startingPrice } = body;
+
+    if (!startingPrice || isNaN(startingPrice) || startingPrice <= 0) {
+      return Response.json(
+        { error: "Invalid starting price provided" },
+        { status: 400 }
+      );
+    }
+
     // Get room by room_id_web
     const { data: room, error: roomError } = await supabase
       .from("rooms")
@@ -62,6 +73,7 @@ export async function PUT(
 
     console.log(`🚀 Starting room ${params.id}:`);
     console.log(`   Duration: ${room.duration_minutes} minutes`);
+    console.log(`   Starting Price: $${startingPrice.toFixed(2)}`);
     console.log(
       `   Start time: ${startUtcString} UTC (${Math.floor(
         startTime.getTime() / 1000
@@ -78,11 +90,12 @@ export async function PUT(
       )}`
     );
 
-    // Update room status to "started" with calculated end time
+    // Update room status to "started" with calculated end time and starting price
     const { data: updatedRoom, error: updateError } = await supabase
       .from("rooms")
       .update({
         status: "started",
+        starting_price: startingPrice,
         starts_at: startUtcString,
         ends_at: endUtcString,
       })

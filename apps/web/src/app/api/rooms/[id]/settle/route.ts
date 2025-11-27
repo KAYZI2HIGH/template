@@ -138,22 +138,34 @@ export async function POST(
 
     // Calculate totals
     const totalPool = predictions.reduce((sum, p) => sum + p.stake_amount, 0);
-    const winners = predictions.filter((p) => {
-      const isUp = p.direction === "UP";
-      return priceWentUp ? isUp : !isUp;
-    });
+
+    // Determine winning direction based on price movement
+    // If ending_price > starting_price → "UP" wins
+    // If ending_price < starting_price → "DOWN" wins
+    const winningDirection = endingPrice > startingPrice ? "UP" : "DOWN";
+
+    const winners = predictions.filter((p) => p.direction === winningDirection);
     const totalWinnerStake = winners.reduce(
       (sum, p) => sum + p.stake_amount,
       0
     );
 
+    console.log(
+      `📊 Settlement calculation: startingPrice=$${startingPrice}, endingPrice=$${endingPrice}, winningDirection=${winningDirection}`
+    );
+
     // Update predictions with outcomes and payouts
     const settlementPromises = predictions.map(async (prediction) => {
-      const isUp = prediction.direction === "UP";
-      const isWinner = priceWentUp ? isUp : !isUp;
+      const isWinner = prediction.direction === winningDirection;
       const payout = isWinner
         ? (prediction.stake_amount / totalWinnerStake) * totalPool
         : 0;
+
+      console.log(
+        `   Prediction ${prediction.id}: ${prediction.direction} - ${
+          isWinner ? "WIN" : "LOSS"
+        } (payout: ${payout})`
+      );
 
       const { error: updateError } = await supabase
         .from("predictions")
@@ -190,7 +202,7 @@ export async function POST(
     if (updateError) throw updateError;
 
     console.log(
-      `✅ Room ${params.id} settled: startingPrice=${startingPrice}, endingPrice=${endingPrice}, priceWentUp=${priceWentUp}, winnerCount=${winners.length}`
+      `✅ Room ${params.id} settled: startingPrice=$${startingPrice}, endingPrice=$${endingPrice}, winningDirection=${winningDirection}, winnerCount=${winners.length}`
     );
 
     return Response.json({
@@ -198,7 +210,8 @@ export async function POST(
       settlement: {
         startingPrice,
         endingPrice,
-        priceWentUp,
+        winningDirection,
+        priceWentUp: endingPrice > startingPrice,
         totalPool,
         totalWinnerStake,
         winners: settlementResults.filter((r) => r.outcome === "WIN").length,

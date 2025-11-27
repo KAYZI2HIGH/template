@@ -1,61 +1,53 @@
 "use client";
 import Logo from "@/components/Logo";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useAuth, useAutoAuth } from "@/contexts/AuthContext";
-import { useAccount } from "wagmi";
-import { useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useAccount, useDisconnect } from "wagmi";
 import { Suspense } from "react";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { useDisconnect } from "wagmi";
+import { Skeleton } from "@/components/ui/skeleton";
 
 function WalletSection() {
-  const { logout, isAuthenticated, user, isLoading } = useAuth();
-  const { address, isConnected } = useAccount();
+  const { user, isLoading } = useAuth();
+  const { isConnected } = useAccount();
   const { disconnect } = useDisconnect();
-  const autoAuth = useAutoAuth();
-
-  // Auto-authenticate when wallet connects
-  useEffect(() => {
-    if (isConnected && address && !isAuthenticated && !isLoading) {
-      autoAuth(address);
-    }
-  }, [isConnected, address, isAuthenticated, isLoading, autoAuth]);
 
   const handleDisconnect = () => {
-    logout(); // Clear app auth state
-    disconnect(); // Disconnect wallet from RainbowKit
+    disconnect();
   };
 
   return (
     <section className="p-4 border-[#1E2943] border-b">
       <h2 className="font-semibold mb-3 text-sm">Wallet</h2>
       <div className="bg-[#0F1729] rounded p-3 border border-[#1E2943]">
-        {isLoading && (
-          <p className="text-xs text-muted-foreground mb-2">
-            Authenticating...
-          </p>
-        )}
-
-        {!isConnected ? (
+        {isLoading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-full bg-[#1E2943]" />
+            <Skeleton className="h-3 w-5/6 bg-[#1E2943]" />
+            <Skeleton className="h-8 w-full bg-[#1E2943] rounded mt-2" />
+          </div>
+        ) : !isConnected ? (
           <div className="flex flex-col gap-2">
             <p className="text-xs text-muted-foreground mb-2">
               Click to connect wallet
             </p>
             <ConnectButton />
           </div>
-        ) : !isAuthenticated ? (
-          <p className="text-xs text-muted-foreground mb-2">
-            Auto-authenticating wallet...
-          </p>
+        ) : !user ? (
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-full bg-[#1E2943]" />
+            <Skeleton className="h-3 w-5/6 bg-[#1E2943]" />
+            <Skeleton className="h-8 w-full bg-[#1E2943] rounded mt-2" />
+          </div>
         ) : (
           <>
             <p className="text-xs text-muted-foreground mb-2">✅ Connected</p>
             <p className="text-xs font-mono text-green-300 max-w-[180px] truncate">
-              {user?.wallet_address}
+              {user.wallet_address}
             </p>
             <p className="text-xs text-muted-foreground mt-2 mb-3">
               User:{" "}
-              <span className="text-green-300">{user?.username || "Anon"}</span>
+              <span className="text-green-300">{user.username || "Anon"}</span>
             </p>
             <button
               onClick={handleDisconnect}

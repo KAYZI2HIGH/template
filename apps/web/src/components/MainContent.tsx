@@ -18,13 +18,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Plus, Loader } from "lucide-react";
+import { Search, Plus } from "lucide-react";
 import Image from "next/image";
 import Logo from "@/components/Logo";
 import { RoomCard } from "./RoomCard";
 import { Room } from "@/lib/types";
 import { AVAILABLE_STOCKS } from "@/lib/stocks";
 import { useAvailableStocks } from "@/hooks/useRoomQueries";
+import { LoadingRoomList } from "./LoadingRoomCard";
 
 interface MainContentProps {
   rooms: Room[];
@@ -59,7 +60,8 @@ export function MainContent({
   });
 
   // Fetch available stocks using React Query
-  const { data: stocksResponse, isLoading: loadingStocks } = useAvailableStocks();
+  const { data: stocksResponse, isLoading: loadingStocks } =
+    useAvailableStocks();
   const availableStocks = stocksResponse?.stocks || AVAILABLE_STOCKS;
 
   // Use myRooms passed from parent, calculate public rooms as all - mine
@@ -181,13 +183,7 @@ export function MainContent({
         {/* Rooms List */}
         <div className="space-y-4">
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center gap-4 py-12">
-              <Loader
-                size={40}
-                className="text-green-400 animate-spin"
-              />
-              <p className="text-sm text-gray-400">Loading rooms...</p>
-            </div>
+            <LoadingRoomList count={3} />
           ) : displayedRooms.length === 0 ? (
             <div className="text-center py-12 text-gray-400">
               <p className="text-sm">

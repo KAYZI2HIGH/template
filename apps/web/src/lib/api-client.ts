@@ -1,61 +1,26 @@
 /**
  * Authenticated API client
- * Automatically includes auth token in request headers
+ * Sends wallet address in X-Wallet-Address header for API to identify the user
+ * Wagmi handles wallet connection state, so we just read the current address
  */
+
+import { useAccount } from "wagmi";
 
 export async function authenticatedFetch(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  walletAddress?: string
 ) {
-  const token = localStorage.getItem("auth_token");
-
   const headers = new Headers(options.headers || {});
   headers.set("Content-Type", "application/json");
 
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
+  // If wallet address is provided, add it to the request
+  if (walletAddress) {
+    headers.set("X-Wallet-Address", walletAddress.toLowerCase());
   }
 
   return fetch(endpoint, {
     ...options,
     headers,
   });
-}
-
-/**
- * Verify if auth token is still valid
- */
-export function isTokenValid(): boolean {
-  const token = localStorage.getItem("auth_token");
-  const user = localStorage.getItem("auth_user");
-  return !!(token && user);
-}
-
-/**
- * Clear auth tokens
- */
-export function clearAuthTokens(): void {
-  localStorage.removeItem("auth_token");
-  localStorage.removeItem("auth_user");
-}
-
-/**
- * Get stored user data
- */
-export function getStoredUser() {
-  const userStr = localStorage.getItem("auth_user");
-  if (!userStr) return null;
-
-  try {
-    return JSON.parse(userStr);
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Get auth token
- */
-export function getAuthToken(): string | null {
-  return localStorage.getItem("auth_token");
 }

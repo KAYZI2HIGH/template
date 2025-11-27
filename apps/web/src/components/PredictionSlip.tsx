@@ -1,10 +1,13 @@
 "use client";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ArrowUp, ArrowDown, TrendingUp } from "lucide-react";
+import { ArrowUp, ArrowDown, TrendingUp, Trophy, XCircle } from "lucide-react";
 import { Room, UserPrediction } from "@/lib/types";
 import { useEffect, useState } from "react";
 import { getSecondsRemaining, formatSecondsToTime } from "@/lib/app-utils";
+import { useSettleRoom } from "@/hooks/useRoomSettlement";
+import { useAuth } from "@/contexts/AuthContext";
+import { usePredictionOutcome, useStockPrice } from "@/hooks/useRoomQueries";
 
 interface PredictionSlipProps {
   selectedRoom?: Room;
@@ -34,10 +37,49 @@ export function PredictionSlip({
   userPredictions = [],
 }: PredictionSlipProps) {
   const room = selectedRoom;
+  const { user } = useAuth();
+  const settleRoom = useSettleRoom();
+
   const [displayStatus, setDisplayStatus] = useState<
     "waiting" | "started" | "completed"
   >("waiting");
   const [timeRemaining, setTimeRemaining] = useState<string>("");
+
+  // Fetch current stock price
+  const { data: currentPrice } = useStockPrice(room?.symbol || "");
+
+  // Fetch outcome using React Query
+  const {
+    data: userOutcome,
+    isLoading: isLoadingOutcome,
+    error: outcomeError,
+  } = usePredictionOutcome(
+    displayStatus === "completed" ? selectedRoomId || undefined : undefined,
+    user?.wallet_address
+  );
+
+  // Debug logging for outcome
+  useEffect(() => {
+    console.log("🎯 PredictionSlip Outcome Debug:", {
+      displayStatus,
+      selectedRoomId,
+      walletAddress: user?.wallet_address,
+      isLoadingOutcome,
+      userOutcome,
+      outcomeError: outcomeError?.message || "none",
+      shouldFetch:
+        displayStatus === "completed" &&
+        !!selectedRoomId &&
+        !!user?.wallet_address,
+    });
+  }, [
+    displayStatus,
+    selectedRoomId,
+    user?.wallet_address,
+    isLoadingOutcome,
+    userOutcome,
+    outcomeError,
+  ]);
 
   // Trust the server status - no client-side recalculation
   useEffect(() => {
@@ -79,6 +121,11 @@ export function PredictionSlip({
 
   // Check if user has already placed a bet in this specific room
   const userHasBetInThisRoom = userPredictions.some(
+    (pred) => pred.roomId === selectedRoomId
+  );
+
+  // Get user's prediction details (direction, stake)
+  const userPredictionInRoom = userPredictions.find(
     (pred) => pred.roomId === selectedRoomId
   );
 
@@ -132,8 +179,13 @@ export function PredictionSlip({
           </div>
           <div className="space-y-2 mb-3">
             <p className="text-xs text-gray-400 flex justify-between items-center w-full">
-              Current Price: <span>•••••••••••••••••••••••••••••••••</span>
-              <span className="text-green-300 font-semibold">{room.price}</span>
+              {displayStatus === "completed" ? "Ending Price" : "Current Price"}
+              : <span>•••••••••••••••••••••••••••••••••</span>
+              <span className="text-green-300 font-semibold">
+                {displayStatus === "completed" && currentPrice
+                  ? `$${currentPrice.toFixed(2)}`
+                  : room.price}
+              </span>
             </p>
             <p className="text-xs text-gray-400 flex justify-between items-center w-full">
               {displayStatus === "started" ? "Time Remaining" : "Duration"}:{" "}
@@ -161,6 +213,64 @@ export function PredictionSlip({
               <span className="text-green-300">{room.up + room.down}/10</span>
             </p>
           </div>
+
+          {/* Your Prediction Details - Show if user has predicted */}
+          {userHasBetInThisRoom && userPredictionInRoom && (
+            <div className="mt-3 pt-3 border-t border-[#1E2943] flex-1 mb-3">
+              <h4 className="text-xs font-semibold text-white mb-2">
+                Your Prediction
+              </h4>
+              <div className="space-y-2">
+                <p className="text-xs text-gray-400 flex items-center justify-between">
+                  Direction:{" "}
+                  <span>•••••••••••••••••••••••••••••••••••••••••••••</span>
+                  <span
+                    className={`text-sm font-bold ${
+                      userPredictionInRoom.prediction === "UP"
+                        ? "text-green-400"
+                        : "text-red-400"
+                    }`}
+                  >
+                    {userPredictionInRoom.prediction}
+                  </span>
+                </p>
+                <p className="text-xs text-gray-400 flex items-center justify-between">
+                  Your Stake:{" "}
+                  <span>•••••••••••••••••••••••••••••••••••••••••••••</span>
+                  <span className="text-green-300">
+                    {userPredictionInRoom.stake}
+                  </span>
+                </p>
+                {displayStatus === "completed" && (
+                  <>
+                    <p className="text-xs text-gray-400 flex items-center justify-between">
+                      Starting Price:{" "}
+                      <span>•••••••••••••••••••••••••••••••</span>
+                      <span className="text-green-300">{room.price}</span>
+                    </p>
+                    <p className="text-xs text-gray-400 flex items-center justify-between">
+                      Ending Price:{" "}
+                      <span>•••••••••••••••••••••••••••••••••</span>
+                      <span className="text-green-300">
+                        {currentPrice
+                          ? `$${currentPrice.toFixed(2)}`
+                          : "Loading..."}
+                      </span>
+                    </p>
+                    {userPredictionInRoom.payout && (
+                      <p className="text-xs text-gray-400 flex items-center justify-between">
+                        Payout:{" "}
+                        <span>•••••••••••••••••••••••••••••••••••••••••••</span>
+                        <span className="text-green-300 font-semibold">
+                          {userPredictionInRoom.payout}
+                        </span>
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="mt-3 pt-3 border-t border-[#1E2943] flex-1 mb-3">
             <h4 className="text-xs font-semibold text-white mb-2">
@@ -288,12 +398,84 @@ export function PredictionSlip({
                 )}
               </>
             ) : (
-              /* SCENARIO 3: Room Status is "Started" or "Completed" */ <div className="text-center py-2">
-                <p className="text-xs text-gray-400">
-                  {displayStatus === "started"
-                    ? "Game is in progress. No new predictions allowed."
-                    : "Game has completed. Results are being calculated."}
-                </p>
+              /* SCENARIO 3: Room Status is "Started" or "Completed" */ <div className="space-y-3">
+                {displayStatus === "started" ? (
+                  <p className="text-xs text-gray-400 text-center py-2">
+                    Game is in progress. No new predictions allowed.
+                  </p>
+                ) : (
+                  // SCENARIO 3a: Room is Completed
+                  <div className="space-y-3">
+                    {/* Show user outcome if they placed a prediction */}
+                    {userHasBetInThisRoom ? (
+                      <div
+                        className={`p-4 rounded border-2 text-center ${
+                          userOutcome === "WIN"
+                            ? "bg-green-500/10 border-green-500"
+                            : "bg-red-500/10 border-red-500"
+                        }`}
+                      >
+                        {isLoadingOutcome ? (
+                          <p className="text-xs text-gray-400">
+                            Loading results...
+                          </p>
+                        ) : (
+                          <>
+                            <div className="flex items-center justify-center gap-2 mb-2">
+                              {userOutcome === "WIN" ? (
+                                <>
+                                  <Trophy
+                                    size={20}
+                                    className="text-green-400"
+                                  />
+                                  <p className="text-lg font-bold text-green-400">
+                                    YOU WON! 🎉
+                                  </p>
+                                </>
+                              ) : (
+                                <>
+                                  <XCircle
+                                    size={20}
+                                    className="text-red-400"
+                                  />
+                                  <p className="text-lg font-bold text-red-400">
+                                    YOU LOST
+                                  </p>
+                                </>
+                              )}
+                            </div>
+                            {userOutcome === "WIN" && (
+                              <p className="text-xs text-gray-300 mb-3">
+                                Congratulations! Your prediction was correct.
+                              </p>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="p-4 rounded border border-[#1E2943] text-center bg-[#0F1729]">
+                        <p className="text-xs text-gray-400">
+                          You did not place a prediction in this room.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Settlement button - auto settles, but available as backup for winners */}
+                    {userOutcome === "WIN" && (
+                      <button
+                        onClick={() =>
+                          selectedRoomId && settleRoom.mutate(selectedRoomId)
+                        }
+                        disabled={settleRoom.isPending}
+                        className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 active:bg-green-800 text-white text-sm py-2.5 rounded font-semibold transition-all duration-200 flex items-center justify-center gap-2"
+                      >
+                        {settleRoom.isPending
+                          ? "Claiming..."
+                          : "Claim Winnings"}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>

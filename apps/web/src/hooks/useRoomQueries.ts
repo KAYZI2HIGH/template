@@ -1,8 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
+import { useAccount } from "wagmi";
 import { Room, UserPrediction } from "@/lib/types";
 import { authenticatedFetch } from "@/lib/api-client";
 import { useQueryClientInstance } from "@/components/Providers";
+import { useAuth } from "@/contexts/AuthContext";
 
 /**
  * Query key factory for room-related queries
@@ -31,10 +33,10 @@ export const predictionQueryKeys = {
 /**
  * Fetch all rooms
  */
-const fetchRooms = async (): Promise<Room[]> => {
+const fetchRooms = async (walletAddress?: string): Promise<Room[]> => {
   const response = await authenticatedFetch("/api/rooms", {
     method: "GET",
-  });
+  }, walletAddress);
 
   if (!response.ok) {
     throw new Error(`Failed to fetch rooms: ${response.statusText}`);
@@ -47,7 +49,7 @@ const fetchRooms = async (): Promise<Room[]> => {
  * Fetch user's rooms (created rooms)
  */
 const fetchMyRooms = async (walletAddress: string): Promise<Room[]> => {
-  const rooms = await fetchRooms();
+  const rooms = await fetchRooms(walletAddress);
   return rooms.filter(
     (room) => room.ownerId?.toLowerCase() === walletAddress.toLowerCase()
   );
@@ -61,12 +63,12 @@ const createRoom = async (data: {
   symbol: string;
   timeDuration: string;
   minStake: string;
-}) => {
+}, walletAddress?: string) => {
   const response = await authenticatedFetch("/api/rooms", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
-  });
+  }, walletAddress);
 
   if (!response.ok) {
     throw new Error(`Failed to create room: ${response.statusText}`);
@@ -78,12 +80,12 @@ const createRoom = async (data: {
 /**
  * Start a room (on-chain)
  */
-const startRoom = async (roomId: string) => {
-  const response = await authenticatedFetch(`/api/rooms/${roomId}/start`, {
+const startRoom = async (data: { roomId: string; startingPrice: number }, walletAddress?: string) => {
+  const response = await authenticatedFetch(`/api/rooms/${data.roomId}/start`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({}),
-  });
+    body: JSON.stringify({ startingPrice: data.startingPrice }),
+  }, walletAddress);
 
   if (!response.ok) {
     throw new Error(`Failed to start room: ${response.statusText}`);
@@ -95,10 +97,10 @@ const startRoom = async (roomId: string) => {
 /**
  * Fetch user's predictions
  */
-const fetchPredictions = async (): Promise<UserPrediction[]> => {
+const fetchPredictions = async (walletAddress?: string): Promise<UserPrediction[]> => {
   const response = await authenticatedFetch("/api/predictions", {
     method: "GET",
-  });
+  }, walletAddress);
 
   if (!response.ok) {
     throw new Error(`Failed to fetch predictions: ${response.statusText}`);
@@ -115,12 +117,12 @@ const createPrediction = async (data: {
   direction: "up" | "down";
   amount: number;
   creator: string;
-}) => {
+}, walletAddress?: string) => {
   const response = await authenticatedFetch("/api/predictions", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
-  });
+  }, walletAddress);
 
   if (!response.ok) {
     throw new Error(`Failed to create prediction: ${response.statusText}`);
@@ -133,12 +135,16 @@ const createPrediction = async (data: {
  * Hook: Fetch all rooms
  */
 export const useRooms = () => {
+  const { isAuthenticated } = useAuth();
+  const { address } = useAccount();
+
   return useQuery({
     queryKey: roomQueryKeys.list(),
-    queryFn: fetchRooms,
+    queryFn: () => fetchRooms(address),
     staleTime: 500, // Very short stale time - refetch frequently
     gcTime: 1000 * 60 * 10, // 10 minutes cache
     refetchInterval: 1000, // Poll every 1 second to update countdown timer
+    enabled: isAuthenticated, // Don't fetch if not authenticated
   });
 };
 
@@ -174,9 +180,10 @@ export const useMyRooms = (walletAddress: string | null) => {
  */
 export const useCreateRoom = () => {
   const queryClient = useQueryClient();
+  const { address } = useAccount();
 
   return useMutation({
-    mutationFn: createRoom,
+    mutationFn: (data: Parameters<typeof createRoom>[0]) => createRoom(data, address),
     onSuccess: (newRoom) => {
       // Invalidate rooms list to trigger refetch
       queryClient.invalidateQueries({ queryKey: roomQueryKeys.lists() });
@@ -194,9 +201,10 @@ export const useCreateRoom = () => {
  */
 export const useStartRoom = () => {
   const queryClient = useQueryClient();
+  const { address } = useAccount();
 
   return useMutation({
-    mutationFn: startRoom,
+    mutationFn: (data: Parameters<typeof startRoom>[0]) => startRoom(data, address),
     onSuccess: (updatedRoom) => {
       // Invalidate all room queries
       queryClient.invalidateQueries({ queryKey: roomQueryKeys.lists() });
@@ -215,12 +223,16 @@ export const useStartRoom = () => {
  * Hook: Fetch user's predictions
  */
 export const usePredictions = () => {
+  const { isAuthenticated } = useAuth();
+  const { address } = useAccount();
+
   return useQuery({
     queryKey: predictionQueryKeys.list(),
-    queryFn: fetchPredictions,
+    queryFn: () => fetchPredictions(address),
     staleTime: 1000 * 60, // 1 minute
     gcTime: 1000 * 60 * 10,
     refetchInterval: 1000, // Poll every 1 second to keep predictions in sync with rooms
+    enabled: isAuthenticated, // Don't fetch if not authenticated
   });
 };
 
@@ -287,12 +299,12 @@ export const useStockPrice = (symbol: string) => {
 /**
  * Settle a room (calculate winners and payouts)
  */
-const settleRoom = async (roomId: string) => {
+const settleRoom = async (roomId: string, walletAddress?: string) => {
   const response = await authenticatedFetch(`/api/rooms/${roomId}/settle`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({}),
-  });
+  }, walletAddress);
 
   if (!response.ok) {
     throw new Error(`Failed to settle room: ${response.statusText}`);
@@ -306,9 +318,10 @@ const settleRoom = async (roomId: string) => {
  */
 export const useCreatePrediction = () => {
   const queryClient = useQueryClient();
+  const { address } = useAccount();
 
   return useMutation({
-    mutationFn: createPrediction,
+    mutationFn: (data: Parameters<typeof createPrediction>[0]) => createPrediction(data, address),
     onSuccess: () => {
       // Invalidate predictions and rooms (for count updates)
       queryClient.invalidateQueries({ queryKey: predictionQueryKeys.lists() });
@@ -323,18 +336,182 @@ export const useCreatePrediction = () => {
 /**
  * Hook: Settle a room
  */
+/**
+ * Hook: Settle a room
+ */
 export const useSettleRoom = () => {
   const queryClient = useQueryClient();
+  const { address } = useAccount();
 
   return useMutation({
-    mutationFn: settleRoom,
+    mutationFn: (roomId: string) => settleRoom(roomId, address),
     onSuccess: (data) => {
       // Invalidate all queries to refresh
       queryClient.invalidateQueries({ queryKey: roomQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: predictionQueryKeys.lists() });
+      // Also invalidate all outcome queries to force refetch of outcomes
+      queryClient.invalidateQueries({ queryKey: outcomeQueryKeys.all });
+      console.log("✅ Settlement complete - queries invalidated");
     },
     onError: (error: Error) => {
       console.error("Failed to settle room:", error.message);
     },
   });
+};
+
+/**
+ * Fetch prediction outcome for a specific room and user
+ */
+const fetchPredictionOutcome = async (
+  roomId: string,
+  walletAddress: string
+): Promise<"WIN" | "LOSS" | null> => {
+  console.log("🔍 fetchPredictionOutcome called:", {
+    roomId,
+    walletAddress,
+    timestamp: new Date().toISOString(),
+  });
+
+  const response = await authenticatedFetch(
+    `/api/predictions?roomId=${roomId}&walletAddress=${walletAddress}`,
+    {
+      method: "GET",
+    },
+    walletAddress
+  );
+
+  console.log("📡 API Response status:", response.status, response.statusText);
+
+  if (!response.ok) {
+    const errorMsg = `Failed to fetch prediction outcome: ${response.statusText}`;
+    console.error("❌ API Error:", errorMsg);
+    throw new Error(errorMsg);
+  }
+
+  const data = await response.json();
+  console.log("📦 Raw API data:", data);
+
+  // API returns array of UserPrediction objects
+  // Since we filtered by roomId, should be 0 or 1 items
+  const predictions = Array.isArray(data) ? data : data.predictions || [];
+  console.log("📋 Parsed predictions array:", predictions);
+  console.log("📋 Array length:", predictions.length);
+  console.log(
+    "📋 First item keys:",
+    predictions[0] ? Object.keys(predictions[0]) : "no items"
+  );
+
+  // Get the first (and only) prediction from the filtered results
+  const userPred = predictions[0];
+  console.log("🎯 Found user prediction:", userPred);
+  console.log("🎯 Prediction outcome field:", userPred?.outcome);
+
+  if (userPred && userPred.outcome) {
+    // The outcome is already "WIN" or "LOSS" from the API
+    const result = userPred.outcome as "WIN" | "LOSS";
+    console.log("✅ Returning outcome:", result);
+    return result;
+  }
+
+  console.log("⚠️ No outcome found, returning null");
+  console.log("⚠️ Reason:", {
+    hasPrediction: !!userPred,
+    hasOutcome: userPred?.outcome ? "yes" : "no",
+    outcomeValue: userPred?.outcome,
+  });
+  return null;
+};
+
+/**
+ * Query key factory for prediction outcomes
+ */
+export const outcomeQueryKeys = {
+  all: ["predictionOutcomes"] as const,
+  detail: (roomId: string, walletAddress: string) =>
+    [...outcomeQueryKeys.all, roomId, walletAddress] as const,
+};
+
+/**
+ * Hook: Fetch prediction outcome for a specific room and user
+ */
+export const usePredictionOutcome = (
+  roomId: string | undefined,
+  walletAddress: string | undefined
+) => {
+  const queryKey = outcomeQueryKeys.detail(roomId || "", walletAddress || "");
+  console.log("🪝 usePredictionOutcome hook instantiated:", {
+    roomId,
+    walletAddress,
+    isEnabled: !!roomId && !!walletAddress,
+    queryKey,
+  });
+
+  const query = useQuery({
+    queryKey: queryKey,
+    queryFn: () => fetchPredictionOutcome(roomId!, walletAddress!),
+    enabled: !!roomId && !!walletAddress,
+    staleTime: 1000 * 60, // 1 minute
+    gcTime: 1000 * 60 * 10,
+  });
+
+  console.log("🪝 usePredictionOutcome hook state:", {
+    roomId,
+    walletAddress,
+    status: query.status,
+    data: query.data,
+    isLoading: query.isLoading,
+    error: query.error?.message,
+  });
+
+  return query;
+};
+
+/**
+ * Hook: Automatically settle a room when it completes
+ * Triggers settlement API call whenever a room transitions to "completed" status
+ */
+export const useAutoSettleRoom = (room: Room | null) => {
+  const queryClient = useQueryClient();
+  const { address } = useAccount();
+
+  useEffect(() => {
+    if (!room || room.roomStatus !== "completed") {
+      return;
+    }
+
+    const settleCompletedRoom = async () => {
+      console.log(`🤖 Auto-settling completed room ${room.id}`);
+
+      try {
+        const response = await authenticatedFetch(
+          `/api/rooms/${room.id}/settle`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({}),
+          },
+          address
+        );
+
+        if (!response.ok) {
+          console.error(`Failed to auto-settle room: ${response.statusText}`);
+          return;
+        }
+
+        const data = await response.json();
+        console.log(`✅ Auto-settled room ${room.id}:`, data.settlement);
+
+        // Invalidate all queries to refresh UI
+        queryClient.invalidateQueries({ queryKey: roomQueryKeys.lists() });
+        queryClient.invalidateQueries({
+          queryKey: predictionQueryKeys.lists(),
+        });
+        queryClient.invalidateQueries({ queryKey: outcomeQueryKeys.all });
+      } catch (error) {
+        console.error("Error auto-settling room:", error);
+      }
+    };
+
+    settleCompletedRoom();
+  }, [room?.id, room?.roomStatus, queryClient]);
 };

@@ -6,6 +6,7 @@
 
 import { supabase } from "@/lib/supabase";
 import type { User } from "@/lib/supabase";
+import { calculatePayouts } from "@/lib/settlement";
 
 // Get user by wallet address
 export async function getUserByWallet(walletAddress: string) {
@@ -181,6 +182,45 @@ export async function startRoom(roomId: string, startingPrice: number) {
 
 // Settle room with ending price
 export async function settleRoom(roomId: string, endingPrice: number) {
+  // 1. Get room data to access starting price
+  const { data: room, error: roomError } = await getRoomById(roomId);
+  if (roomError || !room) {
+    return { data: null, error: roomError || new Error("Room not found") };
+  }
+
+  // 2. Get all predictions for this room
+  const { data: predictions, error: predictionsError } =
+    await getRoomPredictions(roomId);
+  if (predictionsError || !predictions) {
+    return {
+      data: null,
+      error: predictionsError || new Error("Failed to fetch predictions"),
+    };
+  }
+
+  // 3. Calculate winning direction and payouts
+  const startingPrice = room.current_price || room.starting_price || 0;
+  const winningDirection = endingPrice > startingPrice ? "up" : "down";
+
+  const outcomes = calculatePayouts(
+    predictions.map((p) => ({
+      id: p.id,
+      direction: p.direction.toLowerCase() as "up" | "down",
+      stake_amount: p.stake_amount,
+    })),
+    winningDirection as "up" | "down"
+  );
+
+  // 4. Update all predictions with their outcomes
+  for (const outcome of outcomes) {
+    if (outcome.outcome === "WIN") {
+      await settlePredictionWin(outcome.id, outcome.payoutAmount);
+    } else {
+      await settlePredictionLoss(outcome.id);
+    }
+  }
+
+  // 5. Update room status to completed
   const { data, error } = await supabase
     .from("rooms")
     .update({

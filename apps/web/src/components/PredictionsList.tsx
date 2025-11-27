@@ -1,8 +1,12 @@
 "use client";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ChevronRight, Zap, Loader } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Zap, XCircle } from "lucide-react";
 import { UserPrediction } from "@/lib/types";
+import { useRooms } from "@/hooks/useRoomQueries";
+import { useSettleRoom } from "@/hooks/useRoomSettlement";
+import { useAuth } from "@/contexts/AuthContext";
+import { PredictionItem } from "./PredictionItem";
+import { LoadingPredictionList } from "./LoadingPredictionItem";
 
 interface PredictionsListProps {
   predictions: UserPrediction[];
@@ -15,17 +19,75 @@ export function PredictionsList({
   isLoading = false,
   onViewDetails,
 }: PredictionsListProps) {
+  const { data: allRooms } = useRooms();
+  const { user, isAuthenticated } = useAuth();
+  const settleRoom = useSettleRoom();
+
+  // CRITICAL: Don't show predictions if user is not authenticated
+  if (!isAuthenticated) {
+    return (
+      <ScrollArea className="flex-1 p-4">
+        <div className="flex flex-col items-center justify-center h-full gap-4 py-8">
+          <XCircle
+            size={48}
+            className="text-red-300/60"
+          />
+          <div className="text-center">
+            <h3 className="text-sm font-semibold text-white mb-2">
+              Not Authenticated
+            </h3>
+            <p className="text-xs text-gray-400">
+              Please connect your wallet to view predictions
+            </p>
+          </div>
+        </div>
+      </ScrollArea>
+    );
+  }
+
+  // Helper to get room status for a prediction
+  const getRoomStatus = (
+    roomId: string
+  ): "waiting" | "started" | "completed" | "unknown" => {
+    if (!allRooms) return "unknown";
+    const room = allRooms.find((r) => r.id === roomId);
+    return (
+      (room?.roomStatus as "waiting" | "started" | "completed") || "unknown"
+    );
+  };
+
+  // Helper to get status color
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "waiting":
+        return "bg-yellow-500/20 text-yellow-300 left-yellow-500";
+      case "started":
+        return "bg-blue-500/20 text-blue-300 left-blue-500";
+      case "completed":
+        return "bg-green-500/20 text-green-300 left-green-500";
+      default:
+        return "bg-gray-500/20 text-gray-300 left-gray-500";
+    }
+  };
+
+  // Helper to get status bar color
+  const getStatusBarColor = (status: string) => {
+    switch (status) {
+      case "waiting":
+        return "bg-yellow-500";
+      case "started":
+        return "bg-blue-500";
+      case "completed":
+        return "bg-green-500";
+      default:
+        return "bg-gray-500";
+    }
+  };
   return (
     <ScrollArea className="flex-1 p-4">
       <div className="space-y-3 pr-4">
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center gap-4 py-8">
-            <Loader
-              size={40}
-              className="text-green-400 animate-spin"
-            />
-            <p className="text-xs text-gray-400">Loading predictions...</p>
-          </div>
+          <LoadingPredictionList count={3} />
         ) : predictions.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-4 py-8">
             <Zap
@@ -42,90 +104,25 @@ export function PredictionsList({
             </div>
           </div>
         ) : (
-          predictions.map((pred, index) => (
-            <div
-              key={`${pred.id}-${pred.roomId}-${index}`}
-              className="bg-[#0F1729] border border-[#1E2943] rounded p-3 pl-5 hover:border-green-300/50 transition-colors cursor-pointer relative"
-            >
-              <div
-                className={cn(
-                  "w-2 h-full absolute left-0 top-0 rounded-l",
-                  pred.status === "active"
-                    ? "bg-blue-500"
-                    : pred.status === "completed"
-                    ? "bg-green-500"
-                    : "bg-yellow-500"
-                )}
-              />
-              <div className="flex justify-between items-start mb-2">
-                <div className="flex-1">
-                  <h4 className="text-xs font-semibold text-white">
-                    {pred.name}
-                  </h4>
-                  <p className="text-xs text-gray-400 mt-1">
-                    Prediction:{" "}
-                    <span className="text-green-300">{pred.prediction}</span>
-                  </p>
-                </div>
-                <span
-                  className={`text-xs px-2 py-1 rounded whitespace-nowrap ml-2 font-medium ${
-                    pred.status === "active"
-                      ? "bg-blue-500/20 text-blue-300"
-                      : pred.status === "completed"
-                      ? "bg-green-500/20 text-green-300"
-                      : "bg-yellow-500/20 text-yellow-300"
-                  }`}
-                >
-                  {pred.status.toUpperCase()}
-                </span>
-              </div>
+          <div className="space-y-3 pr-4">
+            {predictions.map((pred, index) => {
+              const roomStatus = getRoomStatus(pred.roomId);
+              const room = allRooms?.find((r) => r.id === pred.roomId);
 
-              <div className="space-y-1 text-xs text-gray-400">
-                <p>
-                  Stake: <span className="text-white">{pred.stake}</span>
-                </p>
-                {"outcome" in pred && (
-                  <>
-                    <p>
-                      Outcome:{" "}
-                      <span
-                        className={
-                          pred.outcome === "WIN"
-                            ? "text-green-300"
-                            : "text-red-300"
-                        }
-                      >
-                        {pred.outcome}
-                      </span>
-                    </p>
-                    <p>
-                      Payout:{" "}
-                      <span className="text-green-300">{pred.payout}</span>
-                    </p>
-                  </>
-                )}
-                {"timeRemaining" in pred && (
-                  <p>
-                    Time:{" "}
-                    <span className="text-white">{pred.timeRemaining}</span>
-                  </p>
-                )}
-                {"playersJoined" in pred && (
-                  <p>
-                    Players:{" "}
-                    <span className="text-white">{pred.playersJoined}</span>
-                  </p>
-                )}
-              </div>
-
-              <button
-                onClick={() => onViewDetails(pred)}
-                className="w-full mt-2 text-xs text-green-300 hover:text-green-200 font-medium transition-colors flex items-center justify-center gap-1"
-              >
-                View Details <ChevronRight size={12} />
-              </button>
-            </div>
-          ))
+              return (
+                <PredictionItem
+                  key={`${pred.id}-${pred.roomId}-${index}`}
+                  pred={pred}
+                  index={index}
+                  roomStatus={roomStatus}
+                  room={room}
+                  walletAddress={user?.wallet_address}
+                  onViewDetails={onViewDetails}
+                  onSettleRoom={(roomId) => settleRoom.mutate(roomId)}
+                />
+              );
+            })}
+          </div>
         )}
       </div>
     </ScrollArea>

@@ -23,6 +23,7 @@ import {
   useCreateRoom as useCreateRoomMutation,
   useStartRoom as useStartRoomMutation,
   useCreatePrediction as useCreatePredictionMutation,
+  useAutoSettleRoom,
 } from "@/hooks/useRoomQueries";
 import { fetchStockPrice } from "@/lib/app-utils";
 
@@ -54,19 +55,38 @@ export default function Home() {
   const createPredictionMutation = useCreatePredictionMutation();
 
   // ============================================================================
-  // FORCE REFETCH ON AUTH CHANGE
+  // FORCE REFETCH ON AUTH/WALLET CHANGE
+  // ============================================================================
+
+  // ============================================================================
+  // FORCE REFETCH ON AUTH/WALLET CHANGE
   // ============================================================================
 
   useEffect(() => {
     if (isAuthenticated && user?.wallet_address) {
       console.log(
-        `\n🔄 [page.tsx] Auth changed - forcing rooms refetch for ${user.wallet_address}`
+        `\n🔄 [page.tsx] User logged in - refetching for ${user.wallet_address}`
       );
       // Force refetch of all rooms and predictions when user logs in
       queryClient.invalidateQueries({ queryKey: roomQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: predictionQueryKeys.lists() });
+      console.log("✅ Cache invalidated - will refetch with new auth");
+    } else if (!isAuthenticated || !isConnected) {
+      // User logged out, disconnected wallet, or auth cleared
+      console.log(
+        `\n🔄 [page.tsx] User logged out / wallet disconnected - clearing cache`
+      );
+      
+      // Explicitly remove prediction queries to ensure no stale data
+      queryClient.removeQueries({ queryKey: predictionQueryKeys.all });
+      queryClient.removeQueries({ queryKey: roomQueryKeys.lists() });
+      console.log("✅ Prediction and room queries removed");
+      
+      // Clear the entire query cache as secondary safety measure
+      queryClient.clear();
+      console.log("✅ All React Query cache cleared");
     }
-  }, [isAuthenticated, user?.wallet_address, queryClient]);
+  }, [isAuthenticated, user?.wallet_address, isConnected, queryClient]);
 
   // ============================================================================
   // UI STATE
@@ -94,6 +114,12 @@ export default function Home() {
   // Check if user has ANY prediction in this room (active or completed)
   const hasUserPredictedInRoom =
     selectedRoom && userPredictions.some((p) => p.roomId === selectedRoom.id);
+
+  // ============================================================================
+  // AUTO-SETTLEMENT HOOK
+  // ============================================================================
+  // Automatically settle the selected room when it completes
+  useAutoSettleRoom(selectedRoom || null);
 
   // ============================================================================
   // HANDLERS
@@ -426,7 +452,11 @@ export default function Home() {
         "Confirming room start on database..."
       );
 
-      await startRoomMutation.mutateAsync(selectedRoom.id);
+      // Pass both roomId and startingPrice to the mutation
+      await startRoomMutation.mutateAsync({
+        roomId: selectedRoom.id,
+        startingPrice: startingPrice,
+      });
 
       toast.success("Room started!", {
         description: `Game is now in progress at $${startingPrice.toFixed(2)}`,

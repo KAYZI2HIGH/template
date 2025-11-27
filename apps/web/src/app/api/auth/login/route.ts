@@ -11,18 +11,6 @@ if (!supabaseUrl || !supabaseServiceRoleKey) {
 
 const supabase = createClient(supabaseUrl!, supabaseServiceRoleKey!);
 
-/**
- * Simple JWT token generator (for demo purposes)
- * In production, use a proper JWT library
- */
-function generateSimpleToken(walletAddress: string): string {
-  // Create a simple token (wallet_address + timestamp + random)
-  const timestamp = Date.now();
-  const random = Math.random().toString(36).substring(2, 15);
-  const token = `token_${walletAddress}_${timestamp}_${random}`;
-  return Buffer.from(token).toString("base64");
-}
-
 export async function POST(request: Request) {
   try {
     const { wallet_address } = await request.json();
@@ -75,32 +63,7 @@ export async function POST(request: Request) {
       console.log(`✨ New user created: ${normalizedAddress}`);
     }
 
-    // Generate simple JWT token
-    const token = generateSimpleToken(normalizedAddress);
-
-    // Save session to database
-    const { error: sessionError } = await supabase.from("sessions").upsert(
-      [
-        {
-          wallet_address: normalizedAddress,
-          access_token: token,
-          expires_at: new Date(
-            Date.now() + 30 * 24 * 60 * 60 * 1000
-          ).toISOString(),
-        },
-      ],
-      { onConflict: "wallet_address" }
-    );
-
-    if (sessionError) {
-      console.error("Error saving session:", sessionError);
-      return Response.json(
-        { error: "Failed to create session" },
-        { status: 500 }
-      );
-    }
-
-    console.log(`✅ Auth successful for: ${normalizedAddress}`);
+    console.log(`✅ User found/created: ${normalizedAddress}`);
 
     return Response.json(
       {
@@ -117,7 +80,6 @@ export async function POST(request: Request) {
           total_volume: user.total_volume,
           win_rate: user.win_rate,
         },
-        access_token: token,
       },
       { status: 200 }
     );
