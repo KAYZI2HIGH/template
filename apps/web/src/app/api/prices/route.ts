@@ -1,76 +1,145 @@
 /**
  * /api/prices
- * GET: Fetch current prices for stocks
+ * GET: Fetch current prices for stocks from FMP API
  *
- * This is a mock implementation. In production, integrate with:
- * - Chainlink Functions for real stock prices
- * - Financial Modeling Prep API
- * - Your preferred price oracle
+ * This endpoint fetches real prices from Financial Modeling Prep (FMP) API
+ * instead of using mock prices.
  */
 
-// Mock stock prices - Replace with real oracle in production
-const MOCK_PRICES: Record<string, { price: number; lastUpdated: number }> = {
-  "MTN.NG": { price: 250.5, lastUpdated: 0 },
-  "DANGOTE.NG": { price: 1250.0, lastUpdated: 0 },
-  "BUACEMENT.NG": { price: 580.25, lastUpdated: 0 },
-  "ZENITHBANK.NG": { price: 35.5, lastUpdated: 0 },
-  "SEPLAT.NG": { price: 785.75, lastUpdated: 0 },
-  "GTCO.NG": { price: 42.3, lastUpdated: 0 },
-};
+const FMP_API_KEY = process.env.FMP_API_KEY;
+
+// Price cache to avoid rate limiting
+const priceCache: Record<string, { price: number; timestamp: number }> = {};
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 /**
- * Simulates price volatility for testing
- * In production, this would come from Chainlink or your oracle
+ * Fetch price from FMP API with caching and retry logic
  */
-function getSimulatedPrice(basePrice: number, symbol: string): number {
-  // Use symbol and current time to create deterministic "randomness"
-  const seed = symbol.charCodeAt(0) + new Date().getHours();
-  const volatility = Math.sin(seed) * 0.05; // ±5% volatility
+async function fetchPriceFromFMP(
+  symbol: string,
+  retries = 3
+): Promise<number | null> {
+  try {
+    // Check cache first
+    if (priceCache[symbol]) {
+      const cached = priceCache[symbol];
+      if (Date.now() - cached.timestamp < CACHE_TTL) {
+        console.log(`📦 Cache hit for ${symbol}: ${cached.price}`);
+        return cached.price;
+      }
+    }
 
-  return basePrice * (1 + volatility);
+    // Validate API key
+    if (!FMP_API_KEY) {
+      console.error(`❌ FMP_API_KEY not set. Cannot fetch ${symbol}`);
+      return null;
+    }
+
+    const url = `https://financialmodelingprep.com/stable/quote?symbol=${symbol}&apikey=${FMP_API_KEY}`;
+
+    // Retry logic with exponential backoff
+    let lastError: Error | null = null;
+    for (let attempt = 0; attempt < retries; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+        const response = await fetch(url, {
+          method: "GET",
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            console.error(`❌ FMP API Key invalid for ${symbol}`);
+            return null;
+          }
+          if (response.status === 429) {
+            console.warn(`⚠️  Rate limited by FMP API. Retrying...`);
+            await new Promise((resolve) =>
+              setTimeout(resolve, 1000 * (attempt + 1))
+            );
+            continue;
+          }
+          console.error(`FMP API error for ${symbol}: ${response.status}`);
+          lastError = new Error(`HTTP ${response.status}`);
+          continue;
+        }
+
+        const data = await response.json();
+        const price = data[0]?.price;
+
+        if (typeof price === "number" && price > 0) {
+          // Cache the price
+          priceCache[symbol] = { price, timestamp: Date.now() };
+          console.log(`✅ Fetched ${symbol} price from FMP: $${price}`);
+          return price;
+        }
+
+        console.error(`Invalid price data for ${symbol}:`, data);
+        return null;
+      } catch (error) {
+        lastError = error as Error;
+        if (attempt < retries - 1) {
+          console.log(`Retry ${attempt + 1}/${retries} for ${symbol}...`);
+          await new Promise((resolve) =>
+            setTimeout(resolve, 1000 * (attempt + 1))
+          );
+        }
+      }
+    }
+
+    console.error(
+      `Failed to fetch ${symbol} after ${retries} retries:`,
+      lastError
+    );
+    return null;
+  } catch (error) {
+    console.error(`Error fetching price for ${symbol}:`, error);
+    return null;
+  }
 }
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const symbol = searchParams.get("symbol");
 
-  // If no symbol, return all prices
+  // If no symbol provided, return error
   if (!symbol) {
-    const allPrices: Record<
-      string,
-      { price: number; symbol: string; timestamp: number }
-    > = {};
-
-    for (const [sym, data] of Object.entries(MOCK_PRICES)) {
-      allPrices[sym] = {
-        symbol: sym,
-        price: getSimulatedPrice(data.price, sym),
-        timestamp: Date.now(),
-      };
-    }
-
-    return Response.json(allPrices);
-  }
-
-  // Validate symbol
-  const symbolUpper = symbol.toUpperCase();
-  if (!MOCK_PRICES[symbolUpper]) {
     return Response.json(
-      { error: `Symbol ${symbol} not found` },
-      { status: 404 }
+      { error: "Symbol parameter required" },
+      { status: 400 }
     );
   }
 
-  // Return single price
-  const basePrice = MOCK_PRICES[symbolUpper].price;
-  const currentPrice = getSimulatedPrice(basePrice, symbolUpper);
+  // Check if FMP_API_KEY is configured
+  if (!FMP_API_KEY) {
+    console.error("❌ FMP_API_KEY not configured in environment");
+    return Response.json(
+      { error: "FMP API key not configured. Cannot fetch prices." },
+      { status: 500 }
+    );
+  }
+
+  // Fetch price from FMP API
+  const price = await fetchPriceFromFMP(symbol.toUpperCase());
+
+  if (price === null) {
+    console.error(`❌ Failed to fetch price for symbol: ${symbol}`);
+    return Response.json(
+      {
+        error: `Failed to fetch price for ${symbol}. Please check the symbol or try again.`,
+      },
+      { status: 500 }
+    );
+  }
 
   return Response.json({
-    symbol: symbolUpper,
-    price: currentPrice,
-    basePrice: basePrice,
+    symbol: symbol.toUpperCase(),
+    price: price,
     timestamp: Date.now(),
-    source: "Mock Oracle (integrate Chainlink Functions in production)",
+    source: "FMP API",
   });
 }
 
@@ -89,23 +158,23 @@ export async function POST(request: Request) {
       );
     }
 
+    // Use the same FMP API fetch for POST requests too
     const symbolUpper = symbol.toUpperCase();
-    if (!MOCK_PRICES[symbolUpper]) {
+    const price = await fetchPriceFromFMP(symbolUpper);
+
+    if (price === null) {
       return Response.json(
-        { error: `Symbol ${symbol} not found` },
-        { status: 404 }
+        { error: `Failed to fetch price for ${symbol}` },
+        { status: 500 }
       );
     }
 
-    const basePrice = MOCK_PRICES[symbolUpper].price;
-    const currentPrice = getSimulatedPrice(basePrice, symbolUpper);
-
     return Response.json({
       symbol: symbolUpper,
-      price: currentPrice,
+      price: price,
       gameId,
       resolvedAt: new Date().toISOString(),
-      source: "Mock Oracle (integrate Chainlink Functions in production)",
+      source: "FMP API",
     });
   } catch (error) {
     console.error("Price endpoint error:", error);

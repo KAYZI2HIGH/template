@@ -71,6 +71,17 @@ export async function POST(
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Parse request body for optional endingPrice and txHash
+    let endingPrice: number | null = null;
+    let txHash: string | null = null;
+    try {
+      const body = await request.json();
+      endingPrice = body.endingPrice;
+      txHash = body.txHash;
+    } catch (e) {
+      // No body or invalid JSON, will fetch price below
+    }
+
     // Fetch the room
     const { data: room, error: roomError } = await supabase
       .from("rooms")
@@ -82,26 +93,43 @@ export async function POST(
       return Response.json({ error: "Room not found" }, { status: 404 });
     }
 
-    // Verify the user is the room creator
-    if (room.creator_wallet_address !== auth.wallet_address) {
-      return Response.json({ error: "Unauthorized" }, { status: 403 });
+    // Note: With the new contract, ANY player can now settle (not just creator)
+    // The settlement happens via resolveRoom() which anyone can call
+    // The backend just records the transaction for historical tracking
+
+    // Check if room has time-based completion (even if DB status is still "started")
+    let calculatedStatus = room.status;
+    if (room.status === "started" && room.ends_at) {
+      const endsAtStr = String(room.ends_at);
+      const endsAtWithZ = endsAtStr.includes("T") ? endsAtStr : endsAtStr + "Z";
+      const endingTime = Math.floor(new Date(endsAtWithZ).getTime() / 1000);
+      const now = Math.floor(Date.now() / 1000);
+      const durationSeconds = (room.duration_minutes || 0) * 60;
+      const secondsPastEnd = now - endingTime;
+
+      if (secondsPastEnd >= durationSeconds) {
+        calculatedStatus = "completed";
+      }
     }
 
-    // Verify room is in "started" status
-    if (room.status !== "started") {
+    // Verify room is in "started" or time-expired status
+    if (calculatedStatus !== "completed" && room.status !== "started") {
       return Response.json(
-        { error: "Room is not in started status" },
+        { error: "Room is not in started status or has not reached end time" },
         { status: 400 }
       );
     }
 
-    // Fetch current ending price
-    const endingPrice = await fetchCurrentPrice(room.symbol);
-    if (endingPrice === null) {
-      return Response.json(
-        { error: "Failed to fetch ending price" },
-        { status: 500 }
-      );
+    // If endingPrice not provided, fetch from FMP API
+    if (endingPrice === null || endingPrice === undefined) {
+      const fetchedPrice = await fetchCurrentPrice(room.symbol);
+      if (fetchedPrice === null) {
+        return Response.json(
+          { error: "Failed to fetch ending price" },
+          { status: 500 }
+        );
+      }
+      endingPrice = fetchedPrice;
     }
 
     const startingPrice = room.starting_price || 0;
@@ -187,12 +215,13 @@ export async function POST(
 
     const settlementResults = await Promise.all(settlementPromises);
 
-    // Update room to "completed"
+    // Update room to "settled" (settlement confirmed)
     const { data: updatedRoom, error: updateError } = await supabase
       .from("rooms")
       .update({
-        status: "completed",
+        status: "settled",
         ending_price: endingPrice,
+        settled_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
       .eq("room_id_web", params.id)

@@ -69,13 +69,37 @@ export function MainContent({
     (room) => !myRooms.find((myRoom) => myRoom.id === room.id)
   );
 
+  // Sort rooms by: latest created first, then by status priority (settled → completed → started → waiting)
+  const sortRooms = (roomsToSort: typeof rooms) => {
+    const statusPriority: Record<string, number> = {
+      settled: 0,
+      completed: 1,
+      started: 2,
+      waiting: 3,
+    };
+
+    return [...roomsToSort].sort((a, b) => {
+      // First, sort by creation date (newest first)
+      const dateA = new Date(a.createdAt || 0).getTime();
+      const dateB = new Date(b.createdAt || 0).getTime();
+      const dateDiff = dateB - dateA;
+
+      if (dateDiff !== 0) return dateDiff;
+
+      // If same date, sort by status priority
+      const statusA = statusPriority[a.roomStatus || "waiting"] ?? 99;
+      const statusB = statusPriority[b.roomStatus || "waiting"] ?? 99;
+      return statusA - statusB;
+    });
+  };
+
   // Filter rooms based on search query
-  const filteredRooms = (
-    activeRoomTab === "all" ? allPublicRooms : myRooms
-  ).filter(
-    (room) =>
-      room.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      room.symbol.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredRooms = sortRooms(
+    (activeRoomTab === "all" ? allPublicRooms : myRooms).filter(
+      (room) =>
+        room.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        room.symbol.toLowerCase().includes(searchQuery.toLowerCase())
+    )
   );
 
   const handleCreateRoom = () => {

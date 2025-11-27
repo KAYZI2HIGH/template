@@ -2,8 +2,7 @@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Zap, XCircle } from "lucide-react";
 import { UserPrediction } from "@/lib/types";
-import { useRooms } from "@/hooks/useRoomQueries";
-import { useSettleRoom } from "@/hooks/useRoomSettlement";
+import { useRooms, useSettleRoom } from "@/hooks/useRoomQueries";
 import { useAuth } from "@/contexts/AuthContext";
 import { PredictionItem } from "./PredictionItem";
 import { LoadingPredictionList } from "./LoadingPredictionItem";
@@ -45,14 +44,42 @@ export function PredictionsList({
     );
   }
 
+  // Sort predictions by: room creation date (newest first), then by room status priority
+  const sortPredictions = (preds: UserPrediction[]) => {
+    const statusPriority: Record<string, number> = {
+      settled: 0,
+      completed: 1,
+      started: 2,
+      waiting: 3,
+    };
+
+    return [...preds].sort((predA, predB) => {
+      const roomA = allRooms?.find((r) => r.id === predA.roomId);
+      const roomB = allRooms?.find((r) => r.id === predB.roomId);
+
+      // First, sort by room creation date (newest first)
+      const dateA = new Date(roomA?.createdAt || 0).getTime();
+      const dateB = new Date(roomB?.createdAt || 0).getTime();
+      const dateDiff = dateB - dateA;
+
+      if (dateDiff !== 0) return dateDiff;
+
+      // If same date, sort by status priority
+      const statusA = statusPriority[roomA?.roomStatus || "waiting"] ?? 99;
+      const statusB = statusPriority[roomB?.roomStatus || "waiting"] ?? 99;
+      return statusA - statusB;
+    });
+  };
+
   // Helper to get room status for a prediction
   const getRoomStatus = (
     roomId: string
-  ): "waiting" | "started" | "completed" | "unknown" => {
+  ): "waiting" | "started" | "completed" | "settled" | "unknown" => {
     if (!allRooms) return "unknown";
     const room = allRooms.find((r) => r.id === roomId);
     return (
-      (room?.roomStatus as "waiting" | "started" | "completed") || "unknown"
+      (room?.roomStatus as "waiting" | "started" | "completed" | "settled") ||
+      "unknown"
     );
   };
 
@@ -60,13 +87,15 @@ export function PredictionsList({
   const getStatusColor = (status: string) => {
     switch (status) {
       case "waiting":
-        return "bg-yellow-500/20 text-yellow-300 left-yellow-500";
+        return "bg-gray-500/20 text-gray-300";
       case "started":
-        return "bg-blue-500/20 text-blue-300 left-blue-500";
+        return "bg-blue-500/20 text-blue-300";
       case "completed":
-        return "bg-green-500/20 text-green-300 left-green-500";
+        return "bg-yellow-500/20 text-yellow-300";
+      case "settled":
+        return "bg-green-500/20 text-green-300";
       default:
-        return "bg-gray-500/20 text-gray-300 left-gray-500";
+        return "bg-gray-500/20 text-gray-300";
     }
   };
 
@@ -74,10 +103,12 @@ export function PredictionsList({
   const getStatusBarColor = (status: string) => {
     switch (status) {
       case "waiting":
-        return "bg-yellow-500";
+        return "bg-gray-500";
       case "started":
         return "bg-blue-500";
       case "completed":
+        return "bg-yellow-500";
+      case "settled":
         return "bg-green-500";
       default:
         return "bg-gray-500";
@@ -105,9 +136,10 @@ export function PredictionsList({
           </div>
         ) : (
           <div className="space-y-3 pr-4">
-            {predictions.map((pred, index) => {
+            {sortPredictions(predictions).map((pred, index) => {
               const roomStatus = getRoomStatus(pred.roomId);
               const room = allRooms?.find((r) => r.id === pred.roomId);
+              const isSettlingThisRoom = settleRoom.variables === pred.roomId;
 
               return (
                 <PredictionItem
@@ -119,6 +151,7 @@ export function PredictionsList({
                   walletAddress={user?.wallet_address}
                   onViewDetails={onViewDetails}
                   onSettleRoom={(roomId) => settleRoom.mutate(roomId)}
+                  isSettling={isSettlingThisRoom && settleRoom.isPending}
                 />
               );
             })}

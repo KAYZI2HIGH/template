@@ -12,10 +12,15 @@ interface RoomCardProps {
   onViewDetails?: (roomId: string) => void;
 }
 
-type RoomStatus = "waiting" | "started" | "completed";
+type RoomStatus = "waiting" | "started" | "completed" | "settled";
 
 function isValidRoomStatus(status: unknown): status is RoomStatus {
-  return status === "waiting" || status === "started" || status === "completed";
+  return (
+    status === "waiting" ||
+    status === "started" ||
+    status === "completed" ||
+    status === "settled"
+  );
 }
 
 export function RoomCard({
@@ -57,13 +62,17 @@ export function RoomCard({
     return () => clearInterval(interval);
   }, [room.secondsRemaining]);
 
-  const getStatusColor = (status: "waiting" | "started" | "completed") => {
+  const getStatusColor = (
+    status: "waiting" | "started" | "completed" | "settled"
+  ) => {
     switch (status) {
       case "waiting":
         return "bg-yellow-500/20 text-yellow-300";
       case "started":
         return "bg-blue-500/20 text-blue-300";
       case "completed":
+        return "bg-green-500/20 text-green-300";
+      case "settled":
         return "bg-green-500/20 text-green-300";
       default:
         return "bg-gray-500/20 text-gray-300";
@@ -122,7 +131,9 @@ export function RoomCard({
               ? "Join"
               : displayStatus === "started"
               ? "In Progress"
-              : "Completed"}
+              : displayStatus === "completed"
+              ? "Completed"
+              : "Settled"}
           </button>
         )}
       </div>

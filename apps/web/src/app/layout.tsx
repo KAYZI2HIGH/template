@@ -7,7 +7,6 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { Toaster } from "sonner";
 import localFont from "next/font/local";
 import { Providers } from "@/components/Providers";
-import { AuthStatusBar } from "@/components/AuthStatusBar";
 
 const perfectDark = localFont({
   src: "../../public/fonts/pdark.ttf",
@@ -56,7 +55,6 @@ export default function RootLayout({
           <Providers>
             <WalletProvider>
               <AuthProvider>
-                <AuthStatusBar />
                 <main className="flex-1">{children}</main>
               </AuthProvider>
             </WalletProvider>

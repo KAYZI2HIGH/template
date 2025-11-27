@@ -36,6 +36,11 @@
   },
   {
     "inputs": [],
+    "name": "RoomAlreadySettled",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "RoomAlreadyStarted",
     "type": "error"
   },
@@ -419,6 +424,11 @@
             "internalType": "bool",
             "name": "pricesSet",
             "type": "bool"
+          },
+          {
+            "internalType": "bool",
+            "name": "settled",
+            "type": "bool"
           }
         ],
         "internalType": "struct PredictionRoom.Room",
@@ -787,6 +797,11 @@
       {
         "internalType": "bool",
         "name": "pricesSet",
+        "type": "bool"
+      },
+      {
+        "internalType": "bool",
+        "name": "settled",
         "type": "bool"
       }
     ],

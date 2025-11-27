@@ -29,6 +29,48 @@ const VALID_DURATIONS: Record<string, number> = {
 };
 
 /**
+ * Fetch current price from FMP API
+ */
+async function fetchCurrentPrice(symbol: string): Promise<number | null> {
+  try {
+    const apiKey = process.env.FMP_API_KEY;
+    if (!apiKey) {
+      console.error("FMP_API_KEY not set");
+      return null;
+    }
+
+    const url = `https://financialmodelingprep.com/stable/quote?symbol=${symbol.toUpperCase()}&apikey=${apiKey}`;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+    const response = await fetch(url, {
+      method: "GET",
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      console.error(`Failed to fetch price for ${symbol}: ${response.status}`);
+      return null;
+    }
+
+    const data = await response.json();
+    const price = data[0]?.price;
+
+    if (typeof price === "number" && price > 0) {
+      console.log(`📈 Fetched ${symbol} price: $${price}`);
+      return price;
+    }
+
+    return null;
+  } catch (error) {
+    console.error(`Error fetching price for ${symbol}:`, error);
+    return null;
+  }
+}
+
+/**
  * Parse and validate duration string
  * @param durationStr e.g., "2h", "30m", "1h 30m"
  * @returns minutes, or null if invalid
@@ -119,13 +161,21 @@ async function transformRoom(dbRoom: any, predictions: any[]): Promise<Room> {
 
     const durationSeconds = (dbRoom.duration_minutes || 0) * 60;
 
-    if (secondsPastEnd >= durationSeconds) {
+    // Status flow:
+    // "waiting" -> "started" -> "completed" (time expired) -> "settled" (settlement confirmed)
+    if (dbRoom.status === "settled") {
+      // Already settled - keep it
+      secondsRemaining = 0;
+      console.log(`✅ Room ${dbRoom.room_id_web}: SETTLED (confirmed)`);
+    } else if (secondsPastEnd >= durationSeconds) {
+      // Time has expired - mark as completed
       roomStatus = "completed";
       secondsRemaining = 0;
       console.log(
-        `✅ Room ${dbRoom.room_id_web}: COMPLETED (${secondsPastEnd}s >= ${durationSeconds}s duration)`
+        `⏰ Room ${dbRoom.room_id_web}: COMPLETED (time expired, awaiting settlement)`
       );
     } else {
+      // Still running
       secondsRemaining = durationSeconds - secondsPastEnd;
       console.log(
         `⏱️  Room ${dbRoom.room_id_web}: STARTED (${secondsPastEnd}s elapsed, ${secondsRemaining}s remaining)`
@@ -142,7 +192,8 @@ async function transformRoom(dbRoom: any, predictions: any[]): Promise<Room> {
     roomStatus: (roomStatus || "waiting") as
       | "waiting"
       | "started"
-      | "completed",
+      | "completed"
+      | "settled",
     time: formatTimeRemaining(dbRoom.duration_minutes),
     timeDuration: `${Math.floor(dbRoom.duration_minutes / 60)}h ${
       dbRoom.duration_minutes % 60
@@ -223,6 +274,17 @@ export async function POST(request: Request) {
       );
     }
 
+    // Fetch current price for the symbol
+    const startingPrice = await fetchCurrentPrice(symbol);
+    if (startingPrice === null) {
+      return Response.json(
+        {
+          error: `Failed to fetch current price for symbol: ${symbol}. Please try again.`,
+        },
+        { status: 500 }
+      );
+    }
+
     // Create room in database
     const { data: newRoom, error } = await supabase
       .from("rooms")
@@ -235,6 +297,7 @@ export async function POST(request: Request) {
           status: "waiting",
           min_stake: minStake,
           duration_minutes: durationMinutes,
+          starting_price: startingPrice.toString(),
           created_at: new Date().toISOString(),
         },
       ])

@@ -38,6 +38,7 @@ contract PredictionRoom {
         uint256 totalUpStake;
         uint256 totalDownStake;
         bool pricesSet;
+        bool settled; // Prevent multiple resolutions
     }
 
     struct Prediction {
@@ -117,6 +118,7 @@ contract PredictionRoom {
     error TransferFailed();
     error Unauthorized();
     error InvalidTimestamp();
+    error RoomAlreadySettled();
 
     // ============================================================================
     // MODIFIERS
@@ -177,7 +179,8 @@ contract PredictionRoom {
             status: RoomStatus.WAITING,
             totalUpStake: 0,
             totalDownStake: 0,
-            pricesSet: false
+            pricesSet: false,
+            settled: false
         });
 
         emit RoomCreated(
@@ -213,7 +216,8 @@ contract PredictionRoom {
     }
 
     /**
-     * @notice Resolve a room with final price (only creator can call)
+     * @notice Resolve a room and auto-distribute payouts to all winners
+     * @dev Can be called by ANY player once the room is ACTIVE
      * @param roomId The room to resolve
      * @param endingPrice The final price in wei
      */
@@ -223,19 +227,61 @@ contract PredictionRoom {
     ) external roomExists(roomId) {
         Room storage room = rooms[roomId];
 
-        if (msg.sender != room.creator) revert Unauthorized();
+        // Validate room state
         if (room.status != RoomStatus.ACTIVE) revert RoomNotActive();
         if (endingPrice == 0) revert InvalidPrice();
+        if (room.settled) revert RoomAlreadySettled(); // Prevent double settlement
 
+        // Mark as settled immediately to prevent re-entrancy
+        room.settled = true;
         room.endingPrice = endingPrice;
         room.status = RoomStatus.COMPLETED;
         room.pricesSet = true;
 
-        PredictionDirection result = endingPrice > room.startingPrice
+        // Determine winning direction
+        PredictionDirection winningDirection = endingPrice > room.startingPrice
             ? PredictionDirection.UP
             : PredictionDirection.DOWN;
 
-        emit RoomResolved(roomId, endingPrice, result);
+        // Auto-distribute payouts to all winners
+        address[] memory predictors = roomPredictors[roomId];
+        uint256 totalWinnerStake = winningDirection == PredictionDirection.UP
+            ? room.totalUpStake
+            : room.totalDownStake;
+
+        // Only distribute if there are winners
+        if (totalWinnerStake > 0) {
+            uint256 totalPool = room.totalUpStake + room.totalDownStake;
+
+            for (uint256 i = 0; i < predictors.length; i++) {
+                address predictor = predictors[i];
+                Prediction[] storage predictions = userPredictions[roomId][
+                    predictor
+                ];
+
+                for (uint256 j = 0; j < predictions.length; j++) {
+                    Prediction storage prediction = predictions[j];
+
+                    // Skip if already claimed or not a winner
+                    if (prediction.claimed) continue;
+                    if (prediction.direction != winningDirection) continue;
+
+                    // Mark as claimed and calculate payout
+                    prediction.claimed = true;
+                    uint256 payout = (prediction.amount * totalPool) /
+                        totalWinnerStake;
+                    prediction.payout = payout;
+
+                    // Transfer payout to winner
+                    (bool success, ) = predictor.call{value: payout}("");
+                    if (!success) revert TransferFailed();
+
+                    emit PayoutClaimed(predictor, roomId, payout);
+                }
+            }
+        }
+
+        emit RoomResolved(roomId, endingPrice, winningDirection);
     }
 
     /**
@@ -317,6 +363,7 @@ contract PredictionRoom {
 
     /**
      * @notice Claim winnings from a resolved room
+     * @dev Deprecated: Payouts are now auto-distributed when resolveRoom() is called
      * @param roomId The room to claim from
      */
     function claim(uint256 roomId) external roomExists(roomId) {
@@ -330,6 +377,21 @@ contract PredictionRoom {
         ];
         if (userRoomPredictions.length == 0) revert NothingToClaim();
 
+        // Check if user has any unclaimed payouts
+        bool hasUnclaimed = false;
+        for (uint256 i = 0; i < userRoomPredictions.length; i++) {
+            if (
+                !userRoomPredictions[i].claimed &&
+                userRoomPredictions[i].payout > 0
+            ) {
+                hasUnclaimed = true;
+                break;
+            }
+        }
+
+        if (!hasUnclaimed) revert NothingToClaim();
+
+        // This is a fallback for any unclaimed payouts (shouldn't happen normally)
         uint256 totalPayout = 0;
         PredictionDirection winningDirection = room.endingPrice >
             room.startingPrice

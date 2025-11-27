@@ -41,7 +41,7 @@ export function PredictionSlip({
   const settleRoom = useSettleRoom();
 
   const [displayStatus, setDisplayStatus] = useState<
-    "waiting" | "started" | "completed"
+    "waiting" | "started" | "completed" | "settled"
   >("waiting");
   const [timeRemaining, setTimeRemaining] = useState<string>("");
 
@@ -84,9 +84,9 @@ export function PredictionSlip({
   // Trust the server status - no client-side recalculation
   useEffect(() => {
     if (room) {
-      const validStatuses = ["waiting", "started", "completed"];
+      const validStatuses = ["waiting", "started", "completed", "settled"];
       const status = validStatuses.includes(room.roomStatus || "")
-        ? (room.roomStatus as "waiting" | "started" | "completed")
+        ? (room.roomStatus as "waiting" | "started" | "completed" | "settled")
         : ("waiting" as const);
       setDisplayStatus(status);
     }
@@ -179,12 +179,20 @@ export function PredictionSlip({
           </div>
           <div className="space-y-2 mb-3">
             <p className="text-xs text-gray-400 flex justify-between items-center w-full">
-              {displayStatus === "completed" ? "Ending Price" : "Current Price"}
+              {displayStatus === "completed" || displayStatus === "settled"
+                ? "Ending Price"
+                : "Current Price"}
               : <span>•••••••••••••••••••••••••••••••••</span>
               <span className="text-green-300 font-semibold">
-                {displayStatus === "completed" && currentPrice
+                {currentPrice && currentPrice > 0
                   ? `$${currentPrice.toFixed(2)}`
-                  : room.price}
+                  : room.price || "Loading..."}
+              </span>
+            </p>
+            <p className="text-xs text-gray-400 flex justify-between items-center w-full">
+              Starting Price: <span>•••••••••••••••••••••••••••••••</span>
+              <span className="text-green-300 font-semibold">
+                {room.price || "Loading..."}
               </span>
             </p>
             <p className="text-xs text-gray-400 flex justify-between items-center w-full">

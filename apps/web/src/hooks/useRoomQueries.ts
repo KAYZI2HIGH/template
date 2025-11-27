@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
-import { useAccount } from "wagmi";
+import { useAccount, useWalletClient } from "wagmi";
+import { toast } from "sonner";
 import { Room, UserPrediction } from "@/lib/types";
 import { authenticatedFetch } from "@/lib/api-client";
 import { useQueryClientInstance } from "@/components/Providers";
@@ -34,9 +35,13 @@ export const predictionQueryKeys = {
  * Fetch all rooms
  */
 const fetchRooms = async (walletAddress?: string): Promise<Room[]> => {
-  const response = await authenticatedFetch("/api/rooms", {
-    method: "GET",
-  }, walletAddress);
+  const response = await authenticatedFetch(
+    "/api/rooms",
+    {
+      method: "GET",
+    },
+    walletAddress
+  );
 
   if (!response.ok) {
     throw new Error(`Failed to fetch rooms: ${response.statusText}`);
@@ -58,17 +63,24 @@ const fetchMyRooms = async (walletAddress: string): Promise<Room[]> => {
 /**
  * Create a new room
  */
-const createRoom = async (data: {
-  name: string;
-  symbol: string;
-  timeDuration: string;
-  minStake: string;
-}, walletAddress?: string) => {
-  const response = await authenticatedFetch("/api/rooms", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  }, walletAddress);
+const createRoom = async (
+  data: {
+    name: string;
+    symbol: string;
+    timeDuration: string;
+    minStake: string;
+  },
+  walletAddress?: string
+) => {
+  const response = await authenticatedFetch(
+    "/api/rooms",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    },
+    walletAddress
+  );
 
   if (!response.ok) {
     throw new Error(`Failed to create room: ${response.statusText}`);
@@ -80,12 +92,19 @@ const createRoom = async (data: {
 /**
  * Start a room (on-chain)
  */
-const startRoom = async (data: { roomId: string; startingPrice: number }, walletAddress?: string) => {
-  const response = await authenticatedFetch(`/api/rooms/${data.roomId}/start`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ startingPrice: data.startingPrice }),
-  }, walletAddress);
+const startRoom = async (
+  data: { roomId: string; startingPrice: number },
+  walletAddress?: string
+) => {
+  const response = await authenticatedFetch(
+    `/api/rooms/${data.roomId}/start`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ startingPrice: data.startingPrice }),
+    },
+    walletAddress
+  );
 
   if (!response.ok) {
     throw new Error(`Failed to start room: ${response.statusText}`);
@@ -97,10 +116,16 @@ const startRoom = async (data: { roomId: string; startingPrice: number }, wallet
 /**
  * Fetch user's predictions
  */
-const fetchPredictions = async (walletAddress?: string): Promise<UserPrediction[]> => {
-  const response = await authenticatedFetch("/api/predictions", {
-    method: "GET",
-  }, walletAddress);
+const fetchPredictions = async (
+  walletAddress?: string
+): Promise<UserPrediction[]> => {
+  const response = await authenticatedFetch(
+    "/api/predictions",
+    {
+      method: "GET",
+    },
+    walletAddress
+  );
 
   if (!response.ok) {
     throw new Error(`Failed to fetch predictions: ${response.statusText}`);
@@ -112,17 +137,24 @@ const fetchPredictions = async (walletAddress?: string): Promise<UserPrediction[
 /**
  * Create a new prediction
  */
-const createPrediction = async (data: {
-  roomId: string;
-  direction: "up" | "down";
-  amount: number;
-  creator: string;
-}, walletAddress?: string) => {
-  const response = await authenticatedFetch("/api/predictions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  }, walletAddress);
+const createPrediction = async (
+  data: {
+    roomId: string;
+    direction: "up" | "down";
+    amount: number;
+    creator: string;
+  },
+  walletAddress?: string
+) => {
+  const response = await authenticatedFetch(
+    "/api/predictions",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    },
+    walletAddress
+  );
 
   if (!response.ok) {
     throw new Error(`Failed to create prediction: ${response.statusText}`);
@@ -183,7 +215,8 @@ export const useCreateRoom = () => {
   const { address } = useAccount();
 
   return useMutation({
-    mutationFn: (data: Parameters<typeof createRoom>[0]) => createRoom(data, address),
+    mutationFn: (data: Parameters<typeof createRoom>[0]) =>
+      createRoom(data, address),
     onSuccess: (newRoom) => {
       // Invalidate rooms list to trigger refetch
       queryClient.invalidateQueries({ queryKey: roomQueryKeys.lists() });
@@ -204,7 +237,8 @@ export const useStartRoom = () => {
   const { address } = useAccount();
 
   return useMutation({
-    mutationFn: (data: Parameters<typeof startRoom>[0]) => startRoom(data, address),
+    mutationFn: (data: Parameters<typeof startRoom>[0]) =>
+      startRoom(data, address),
     onSuccess: (updatedRoom) => {
       // Invalidate all room queries
       queryClient.invalidateQueries({ queryKey: roomQueryKeys.lists() });
@@ -297,20 +331,72 @@ export const useStockPrice = (symbol: string) => {
 };
 
 /**
- * Settle a room (calculate winners and payouts)
+ * Settle a room (resolve and auto-distribute payouts)
+ * With the new contract, resolveRoom() automatically distributes payouts to all winners
+ * No separate claim() transaction needed
  */
-const settleRoom = async (roomId: string, walletAddress?: string) => {
-  const response = await authenticatedFetch(`/api/rooms/${roomId}/settle`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({}),
-  }, walletAddress);
+const settleRoom = async (
+  roomId: string,
+  walletClient: any,
+  endingPrice: number,
+  walletAddress?: string
+) => {
+  console.log(`📝 Settling room with ending price: ${endingPrice}`);
 
-  if (!response.ok) {
-    throw new Error(`Failed to settle room: ${response.statusText}`);
+  try {
+    const { resolveRoom } = await import("@/lib/contract-client");
+
+    // Get numeric room ID from the API
+    const roomsResponse = await authenticatedFetch(
+      "/api/rooms",
+      { method: "GET" },
+      walletAddress
+    );
+    const allRooms = await roomsResponse.json();
+    const room = allRooms.find((r: any) => r.id === roomId);
+
+    if (!room) {
+      throw new Error("Room not found");
+    }
+
+    // Call resolveRoom on the smart contract
+    // This now handles all settlement logic including auto-distributing payouts
+    console.log(
+      `📝 Calling resolveRoom for room ${room.numericId} with price $${endingPrice}`
+    );
+    const resolveTxHash = await resolveRoom(
+      walletClient,
+      room.numericId,
+      endingPrice
+    );
+    console.log(`✅ Settlement transaction: ${resolveTxHash}`);
+
+    // Wait for blockchain confirmation
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    // Update the backend to record the settlement
+    const response = await authenticatedFetch(
+      `/api/rooms/${roomId}/settle`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          txHash: resolveTxHash,
+          endingPrice,
+        }),
+      },
+      walletAddress
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to record settlement: ${response.statusText}`);
+    }
+
+    return response.json();
+  } catch (error) {
+    console.error("Error settling room:", error);
+    throw error;
   }
-
-  return response.json();
 };
 
 /**
@@ -321,7 +407,8 @@ export const useCreatePrediction = () => {
   const { address } = useAccount();
 
   return useMutation({
-    mutationFn: (data: Parameters<typeof createPrediction>[0]) => createPrediction(data, address),
+    mutationFn: (data: Parameters<typeof createPrediction>[0]) =>
+      createPrediction(data, address),
     onSuccess: () => {
       // Invalidate predictions and rooms (for count updates)
       queryClient.invalidateQueries({ queryKey: predictionQueryKeys.lists() });
@@ -336,25 +423,73 @@ export const useCreatePrediction = () => {
 /**
  * Hook: Settle a room
  */
-/**
- * Hook: Settle a room
- */
 export const useSettleRoom = () => {
   const queryClient = useQueryClient();
   const { address } = useAccount();
+  const { data: walletClient } = useWalletClient();
 
   return useMutation({
-    mutationFn: (roomId: string) => settleRoom(roomId, address),
+    mutationFn: async (roomId: string) => {
+      if (!walletClient) {
+        throw new Error("Wallet not connected");
+      }
+
+      console.log("🔧 Settlement started for room:", roomId);
+
+      // Step 1: Fetch the room to get the symbol
+      const roomResponse = await authenticatedFetch(
+        `/api/rooms`,
+        { method: "GET" },
+        address
+      );
+
+      if (!roomResponse.ok) {
+        throw new Error("Failed to fetch room details");
+      }
+
+      const rooms = await roomResponse.json();
+      const room = rooms.find((r: any) => r.id === roomId);
+
+      if (!room) {
+        throw new Error("Room not found");
+      }
+
+      console.log("📍 Room found:", { id: room.id, symbol: room.symbol });
+
+      // Step 2: Fetch the current price using the room's symbol
+      console.log(`💰 Fetching price for symbol: ${room.symbol}`);
+      const priceResponse = await fetch(`/api/prices?symbol=${room.symbol}`, {
+        method: "GET",
+      });
+
+      console.log(`📊 Price API response status: ${priceResponse.status}`);
+
+      if (!priceResponse.ok) {
+        const errorData = await priceResponse.json().catch(() => ({}));
+        console.error("Price API error:", errorData);
+        throw new Error(
+          `Failed to fetch current price for settlement: ${priceResponse.statusText}`
+        );
+      }
+
+      const priceData = await priceResponse.json();
+      console.log("💵 Price data received:", priceData);
+      return settleRoom(roomId, walletClient, priceData.price, address);
+    },
     onSuccess: (data) => {
       // Invalidate all queries to refresh
       queryClient.invalidateQueries({ queryKey: roomQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: predictionQueryKeys.lists() });
       // Also invalidate all outcome queries to force refetch of outcomes
       queryClient.invalidateQueries({ queryKey: outcomeQueryKeys.all });
-      console.log("✅ Settlement complete - queries invalidated");
+      toast.success("Room settled and payout claimed!");
+      console.log("✅ Settlement complete - payout claimed");
     },
     onError: (error: Error) => {
-      console.error("Failed to settle room:", error.message);
+      const errorMsg =
+        error instanceof Error ? error.message : "Settlement failed";
+      toast.error(errorMsg);
+      console.error("Failed to settle room:", errorMsg);
     },
   });
 };
