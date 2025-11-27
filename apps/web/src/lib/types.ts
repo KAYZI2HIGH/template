@@ -4,9 +4,10 @@ export interface Room {
   name: string;
   symbol: string; // Stock symbol (e.g., "MTN.NG", "DANGCEM.NG")
   status: string;
-  roomStatus?: "waiting" | "started" | "completed";
+  roomStatus?: "waiting" | "started" | "completed" | "settled";
   time: string;
   timeDuration?: string; // e.g., "2h", "30m"
+  durationMinutes?: number; // Total duration in minutes (for timer calculations)
   price: string;
   minStake?: number; // Minimum stake required
   up: number;
@@ -14,6 +15,7 @@ export interface Room {
   ownerId?: string; // User ID of room owner
   ending_time?: number; // Unix timestamp (seconds) when room expires
   secondsRemaining?: number; // Backend-calculated seconds left (0 if waiting/completed)
+  createdAt?: string; // ISO timestamp when room was created
 }
 
 export interface UserPrediction {

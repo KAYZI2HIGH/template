@@ -97,10 +97,19 @@ export function PredictionSlip({
     if (!room) return;
 
     const updateTimer = () => {
-      // Use server-calculated secondsRemaining, decrement by 1 each second
-      let remaining = room.secondsRemaining || 0;
-      const secondsToDisplay = Math.max(0, remaining - 1);
-      const formatted = formatSecondsToTime(secondsToDisplay);
+      // For waiting rooms, display the full duration
+      // For started rooms, display remaining time (secondsRemaining decrements as time passes)
+      let timeToDisplay = 0;
+
+      if (displayStatus === "waiting") {
+        // Show full duration for waiting rooms
+        timeToDisplay = (room.durationMinutes || 0) * 60;
+      } else {
+        // For started/completed rooms, use server-calculated secondsRemaining
+        timeToDisplay = Math.max(0, room.secondsRemaining || 0);
+      }
+
+      const formatted = formatSecondsToTime(timeToDisplay);
       setTimeRemaining(formatted);
     };
 
@@ -108,7 +117,7 @@ export function PredictionSlip({
     const interval = setInterval(updateTimer, 1000);
 
     return () => clearInterval(interval);
-  }, [room?.secondsRemaining]);
+  }, [room?.secondsRemaining, displayStatus, room?.durationMinutes]);
 
   /**
    * INTELLIGENT CONDITIONAL RENDERING LOGIC
@@ -186,15 +195,19 @@ export function PredictionSlip({
               <span className="text-green-300 font-semibold">
                 {currentPrice && currentPrice > 0
                   ? `$${currentPrice.toFixed(2)}`
-                  : room.price || "Loading..."}
+                  : "Loading..."}
               </span>
             </p>
-            <p className="text-xs text-gray-400 flex justify-between items-center w-full">
-              Starting Price: <span>•••••••••••••••••••••••••••••••</span>
-              <span className="text-green-300 font-semibold">
-                {room.price || "Loading..."}
-              </span>
-            </p>
+            {(displayStatus === "started" ||
+              displayStatus === "completed" ||
+              displayStatus === "settled") && (
+              <p className="text-xs text-gray-400 flex justify-between items-center w-full">
+                Starting Price: <span>•••••••••••••••••••••••••••••••</span>
+                <span className="text-green-300 font-semibold">
+                  {room.price || "Loading..."}
+                </span>
+              </p>
+            )}
             <p className="text-xs text-gray-400 flex justify-between items-center w-full">
               {displayStatus === "started" ? "Time Remaining" : "Duration"}:{" "}
               <span>••••••••••••••••••••••••••••••••••••••</span>

@@ -137,10 +137,11 @@ async function transformRoom(dbRoom: any, predictions: any[]): Promise<Room> {
     numericId = (Math.abs(hash) % 1000000) + 1; // Ensure it's positive and reasonable size
   }
 
-  // NOTE: Price fetching moved to frontend RoomCard component
-  // to avoid blocking API responses and showing "Loading..." forever
-  // Backend just returns price placeholder; frontend will fetch actual price
-  const priceDisplay = "$0.00"; // Placeholder - frontend will fetch actual price
+  // NOTE: Use starting_price from database if it exists (set when room is started)
+  // Waiting rooms will have null starting_price
+  const priceDisplay = dbRoom.starting_price
+    ? `$${parseFloat(dbRoom.starting_price).toFixed(2)}`
+    : "$0.00";
 
   // Calculate ending_time from database ends_at field
   // NOTE: ends_at is stored as "timestamp without time zone" in DB, so treat as UTC when parsing
@@ -198,6 +199,7 @@ async function transformRoom(dbRoom: any, predictions: any[]): Promise<Room> {
     timeDuration: `${Math.floor(dbRoom.duration_minutes / 60)}h ${
       dbRoom.duration_minutes % 60
     }m`.replace(/^0h /, ""),
+    durationMinutes: dbRoom.duration_minutes, // Total duration in minutes for timer display
     price: priceDisplay,
     minStake: dbRoom.min_stake ? parseInt(dbRoom.min_stake) : 0,
     up: upCount,
@@ -205,6 +207,7 @@ async function transformRoom(dbRoom: any, predictions: any[]): Promise<Room> {
     ownerId: dbRoom.creator_wallet_address,
     ending_time: endingTime,
     secondsRemaining, // Backend-calculated time remaining (0 if waiting or completed)
+    createdAt: dbRoom.created_at, // ISO timestamp for sorting by latest created
   };
 }
 
@@ -274,18 +277,9 @@ export async function POST(request: Request) {
       );
     }
 
-    // Fetch current price for the symbol
-    const startingPrice = await fetchCurrentPrice(symbol);
-    if (startingPrice === null) {
-      return Response.json(
-        {
-          error: `Failed to fetch current price for symbol: ${symbol}. Please try again.`,
-        },
-        { status: 500 }
-      );
-    }
-
     // Create room in database
+    // Note: starting_price is NOT set at creation
+    // It will be set when the room owner clicks "Start Game"
     const { data: newRoom, error } = await supabase
       .from("rooms")
       .insert([
@@ -297,7 +291,6 @@ export async function POST(request: Request) {
           status: "waiting",
           min_stake: minStake,
           duration_minutes: durationMinutes,
-          starting_price: startingPrice.toString(),
           created_at: new Date().toISOString(),
         },
       ])
