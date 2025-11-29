@@ -265,7 +265,7 @@ export async function claimPayout(walletClient: any, roomId: number) {
       contractAddress: CONTRACT_ADDRESS,
       roomId,
     });
-    
+
     const hash = await walletClient.writeContract({
       address: CONTRACT_ADDRESS,
       abi: PredictionRoomABI,

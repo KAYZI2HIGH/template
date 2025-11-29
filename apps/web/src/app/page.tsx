@@ -443,7 +443,9 @@ export default function Home() {
       // Get duration in minutes from selectedRoom
       const durationMinutes =
         selectedRoom.durationMinutes ||
-        (selectedRoom.timeDuration ? parseInt(selectedRoom.timeDuration) : undefined) ||
+        (selectedRoom.timeDuration
+          ? parseInt(selectedRoom.timeDuration)
+          : undefined) ||
         5;
 
       const txHash = await startRoom(

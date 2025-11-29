@@ -255,47 +255,48 @@ contract PredictionRoom {
      */
     function claimPayout(uint256 roomId) external roomExists(roomId) {
         Room storage room = rooms[roomId];
-        
+
         // Room must be completed (resolved)
         if (room.status != RoomStatus.COMPLETED) revert RoomNotActive();
-        
+
         // Get caller's prediction
         Prediction[] storage predictions = userPredictions[roomId][msg.sender];
         if (predictions.length == 0) revert NothingToClaim();
-        
+
         Prediction storage prediction = predictions[0]; // One prediction per user per room
-        
+
         // Can only claim once
         if (prediction.claimed) revert NothingToClaim();
-        
+
         // Must be a winner
         uint256 totalWinnerStake = room.endingPrice > room.startingPrice
             ? room.totalUpStake
             : room.totalDownStake;
-            
-        PredictionDirection winningDirection = room.endingPrice > room.startingPrice
+
+        PredictionDirection winningDirection = room.endingPrice >
+            room.startingPrice
             ? PredictionDirection.UP
             : PredictionDirection.DOWN;
-            
+
         if (prediction.direction != winningDirection) {
             revert NothingToClaim(); // Loser cannot claim
         }
-        
+
         // Calculate payout
         if (totalWinnerStake == 0) revert NothingToClaim();
-        
+
         uint256 totalPool = room.totalUpStake + room.totalDownStake;
         uint256 payout = (prediction.amount * totalPool) / totalWinnerStake;
-        
+
         if (payout == 0) revert NothingToClaim();
-        
+
         // Mark as claimed and transfer
         prediction.claimed = true;
         prediction.payout = payout;
-        
+
         (bool success, ) = msg.sender.call{value: payout}("");
         if (!success) revert TransferFailed();
-        
+
         emit PayoutClaimed(msg.sender, roomId, payout);
     }
 

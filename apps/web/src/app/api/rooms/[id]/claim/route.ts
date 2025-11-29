@@ -41,10 +41,7 @@ export async function POST(
       .single();
 
     if (predictionError || !prediction) {
-      return Response.json(
-        { error: "Prediction not found" },
-        { status: 404 }
-      );
+      return Response.json({ error: "Prediction not found" }, { status: 404 });
     }
 
     // Mark prediction as claimed
