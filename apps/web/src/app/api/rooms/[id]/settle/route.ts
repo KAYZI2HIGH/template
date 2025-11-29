@@ -86,7 +86,7 @@ export async function POST(
     const { data: room, error: roomError } = await supabase
       .from("rooms")
       .select("*")
-      .eq("room_id_web", params.id)
+      .eq("id", params.id)
       .single();
 
     if (roomError || !room) {
@@ -154,7 +154,7 @@ export async function POST(
           ending_price: endingPrice,
           updated_at: new Date().toISOString(),
         })
-        .eq("room_id_web", params.id)
+        .eq("id", params.id)
         .select()
         .single();
 
@@ -224,7 +224,7 @@ export async function POST(
         settled_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
-      .eq("room_id_web", params.id)
+      .eq("id", params.id)
       .select()
       .single();
 

@@ -46,7 +46,9 @@ export function PredictionSlip({
   const [timeRemaining, setTimeRemaining] = useState<string>("");
 
   // Fetch current stock price
-  const { data: currentPrice } = useStockPrice(room?.symbol || "");
+  const { data: currentPrice, isLoading: priceLoading } = useStockPrice(
+    room?.symbol || ""
+  );
 
   // Fetch outcome using React Query
   const {
@@ -193,9 +195,11 @@ export function PredictionSlip({
                 : "Current Price"}
               : <span>•••••••••••••••••••••••••••••••••</span>
               <span className="text-green-300 font-semibold">
-                {currentPrice && currentPrice > 0
+                {priceLoading
+                  ? "Loading..."
+                  : currentPrice && currentPrice > 0
                   ? `$${currentPrice.toFixed(2)}`
-                  : "Loading..."}
+                  : "$0.00"}
               </span>
             </p>
             {(displayStatus === "started" ||

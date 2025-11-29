@@ -69,6 +69,7 @@ const createRoom = async (
     symbol: string;
     timeDuration: string;
     minStake: string;
+    contractRoomId?: number; // The contract's roomId returned from on-chain creation
   },
   walletAddress?: string
 ) => {
@@ -140,8 +141,8 @@ const fetchPredictions = async (
 const createPrediction = async (
   data: {
     roomId: string;
-    direction: "up" | "down";
-    amount: number;
+    direction: "UP" | "DOWN";
+    stake: number;
     creator: string;
   },
   walletAddress?: string
@@ -151,7 +152,11 @@ const createPrediction = async (
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        roomId: data.roomId,
+        direction: data.direction, // Already uppercase
+        stake: data.stake, // Renamed from 'amount' to match API
+      }),
     },
     walletAddress
   );
@@ -344,7 +349,7 @@ const settleRoom = async (
   console.log(`📝 Settling room with ending price: ${endingPrice}`);
 
   try {
-    const { resolveRoom } = await import("@/lib/contract-client");
+    const { resolveRoom, claimPayout } = await import("@/lib/contract-client");
 
     // Get numeric room ID from the API
     const roomsResponse = await authenticatedFetch(
@@ -359,8 +364,8 @@ const settleRoom = async (
       throw new Error("Room not found");
     }
 
-    // Call resolveRoom on the smart contract
-    // This now handles all settlement logic including auto-distributing payouts
+    // Step 1: Call resolveRoom on the smart contract
+    // This marks the room as COMPLETED and determines the winning direction
     console.log(
       `📝 Calling resolveRoom for room ${room.numericId} with price $${endingPrice}`
     );
@@ -369,12 +374,28 @@ const settleRoom = async (
       room.numericId,
       endingPrice
     );
-    console.log(`✅ Settlement transaction: ${resolveTxHash}`);
+    console.log(`✅ Resolution transaction: ${resolveTxHash}`);
 
     // Wait for blockchain confirmation
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
-    // Update the backend to record the settlement
+    // Step 2: Call claimPayout to transfer winnings to the caller (if they're a winner)
+    console.log(`💰 Claiming payout for room ${room.numericId}`);
+    try {
+      const claimTxHash = await claimPayout(walletClient, room.numericId);
+      console.log(`✅ Claim transaction: ${claimTxHash}`);
+
+      // Wait for claim confirmation
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    } catch (claimError: any) {
+      // Not a winner or already claimed - that's fine, just log it
+      console.log(
+        `⚠️  Claim skipped (likely not a winner or already claimed):`,
+        claimError.message
+      );
+    }
+
+    // Step 3: Update the backend to record the settlement
     const response = await authenticatedFetch(
       `/api/rooms/${roomId}/settle`,
       {

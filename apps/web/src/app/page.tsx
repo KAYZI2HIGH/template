@@ -76,12 +76,12 @@ export default function Home() {
       console.log(
         `\n🔄 [page.tsx] User logged out / wallet disconnected - clearing cache`
       );
-      
+
       // Explicitly remove prediction queries to ensure no stale data
       queryClient.removeQueries({ queryKey: predictionQueryKeys.all });
       queryClient.removeQueries({ queryKey: roomQueryKeys.lists() });
       console.log("✅ Prediction and room queries removed");
-      
+
       // Clear the entire query cache as secondary safety measure
       queryClient.clear();
       console.log("✅ All React Query cache cleared");
@@ -180,20 +180,26 @@ export default function Home() {
         );
       }
 
-      const txHash = await createRoom(contractClients.walletClient, {
-        name: roomData.name,
-        symbol: roomData.symbol,
-        durationMinutes,
-        minStake: minStakeAmount,
-      });
+      const result = await createRoom(
+        contractClients.walletClient,
+        contractClients.publicClient,
+        {
+          name: roomData.name,
+          symbol: roomData.symbol,
+          durationMinutes,
+          minStake: minStakeAmount,
+        }
+      );
 
-      setTxHash(txHash);
+      setTxHash(result.txHash);
       toast.success("Transaction submitted!", {
-        description: `Hash: ${txHash.slice(0, 10)}...`,
+        description: `Hash: ${result.txHash.slice(0, 10)}... Room ID: ${
+          result.roomId
+        }`,
         id: loadingToastId,
       });
 
-      // Step 2: Save to database with tx hash using mutation
+      // Step 2: Save to database with the contract's roomId
       const dbLoadingToastId = toast.loading("Confirming on database...");
 
       await createRoomMutation.mutateAsync({
@@ -201,6 +207,7 @@ export default function Home() {
         symbol: roomData.symbol,
         timeDuration: roomData.timeDuration,
         minStake: roomData.minStake,
+        contractRoomId: result.roomId, // Pass the contract's roomId
       });
 
       setSelectedRoomId(null);
@@ -319,6 +326,8 @@ export default function Home() {
         stakeAmount
       );
 
+      console.log("✅ Transaction hash from placePrediction:", txHash);
+
       setTxHash(txHash);
       toast.success("Prediction submitted!", {
         description: `Hash: ${txHash.slice(
@@ -333,11 +342,10 @@ export default function Home() {
         "Confirming prediction on database..."
       );
 
-      const directionLower = direction === "UP" ? "up" : "down";
       await createPredictionMutation.mutateAsync({
         roomId: selectedRoom.id,
-        direction: directionLower as "up" | "down",
-        amount: stakeAmount,
+        direction: direction, // Send uppercase (UP/DOWN)
+        stake: stakeAmount, // Changed from 'amount' to 'stake' to match API
         creator: user.wallet_address,
       });
 
@@ -431,6 +439,12 @@ export default function Home() {
           )}`
         );
       }
+
+      // Get duration in minutes from selectedRoom
+      const durationMinutes =
+        selectedRoom.durationMinutes ||
+        (selectedRoom.timeDuration ? parseInt(selectedRoom.timeDuration) : undefined) ||
+        5;
 
       const txHash = await startRoom(
         contractClients.walletClient,

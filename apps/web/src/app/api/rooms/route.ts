@@ -127,14 +127,16 @@ async function transformRoom(dbRoom: any, predictions: any[]): Promise<Room> {
     (p) => p.direction === "DOWN"
   ).length;
 
-  // Generate a numeric ID from the UUID by hashing it to a positive integer
-  // This ensures consistency across calls
-  let numericId = 1;
-  if (dbRoom.id) {
+  // Generate a numeric ID: prefer contract_room_id if available, otherwise hash the UUID
+  // contract_room_id is the uint256 roomId from the smart contract
+  let numericId = dbRoom.contract_room_id || 1;
+
+  // If contract_room_id is not set (old rooms), generate from UUID for backward compatibility
+  if (!dbRoom.contract_room_id && dbRoom.id) {
     const hash = dbRoom.id.split("").reduce((acc: number, char: string) => {
       return (acc << 5) - acc + char.charCodeAt(0);
     }, 0);
-    numericId = (Math.abs(hash) % 1000000) + 1; // Ensure it's positive and reasonable size
+    numericId = (Math.abs(hash) % 1000000) + 1;
   }
 
   // NOTE: Use starting_price from database if it exists (set when room is started)
@@ -248,7 +250,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { name, symbol, timeDuration, minStake } = body;
+    const { name, symbol, timeDuration, minStake, contractRoomId } = body;
 
     // Validate required fields
     if (!name || !symbol || !timeDuration || minStake === undefined) {
@@ -258,7 +260,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Generate room_id_web (unique identifier)
+    // Generate room_id_web (unique identifier for database)
     const room_id_web = `room-${Date.now()}-${Math.random()
       .toString(36)
       .substr(2, 9)}`;
@@ -280,11 +282,13 @@ export async function POST(request: Request) {
     // Create room in database
     // Note: starting_price is NOT set at creation
     // It will be set when the room owner clicks "Start Game"
+    // contractRoomId is stored to map database room to the on-chain contract roomId
     const { data: newRoom, error } = await supabase
       .from("rooms")
       .insert([
         {
           room_id_web,
+          contract_room_id: contractRoomId, // Store the contract's uint256 roomId
           creator_wallet_address: auth.wallet_address,
           name,
           symbol,

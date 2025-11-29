@@ -36,8 +36,13 @@ export function RoomCard({
   });
 
   // Fetch stock price using React Query
-  const { data: priceData } = useStockPrice(room.symbol);
-  const displayPrice = priceData ? `$${priceData.toFixed(2)}` : "$0.00";
+  const { data: priceData, isLoading, error } = useStockPrice(room.symbol);
+  const displayPrice =
+    priceData && priceData > 0
+      ? `$${priceData.toFixed(2)}`
+      : isLoading
+      ? "Loading..."
+      : "$0.00";
 
   // Trust the server status - no client-side recalculation
   useEffect(() => {

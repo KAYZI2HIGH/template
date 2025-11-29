@@ -13,6 +13,7 @@ module.exports = {
         enabled: true,
         runs: 200,
       },
+      viaIR: true, // Enable IR-based compilation to handle stack depth issues
     },
   },
   networks: {

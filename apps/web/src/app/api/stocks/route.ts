@@ -181,14 +181,20 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const symbol = searchParams.get("symbol");
 
+    console.log(`📡 Stock API request - Symbol: ${symbol}`);
+
     // If specific symbol requested, fetch its price
     if (symbol) {
       const upperSymbol = symbol.toUpperCase();
+      console.log(`🔍 Looking up symbol: ${upperSymbol}`);
+      console.log(`   Supported: ${SUPPORTED_STOCKS.join(", ")}`);
+
       if (
         !SUPPORTED_STOCKS.includes(
           upperSymbol as (typeof SUPPORTED_STOCKS)[number]
         )
       ) {
+        console.warn(`❌ Symbol ${upperSymbol} not supported`);
         return Response.json(
           {
             error: `Symbol ${symbol} not supported. Supported symbols: ${SUPPORTED_STOCKS.join(
@@ -201,8 +207,10 @@ export async function GET(request: Request) {
       }
 
       const price = await fetchPriceFromFMP(upperSymbol);
+      console.log(`💰 Fetched price for ${upperSymbol}: ${price}`);
 
       if (price === null) {
+        console.error(`❌ Failed to fetch price for ${symbol}`);
         return Response.json(
           {
             error: `Failed to fetch price for ${symbol}. Please try again later.`,
@@ -212,11 +220,14 @@ export async function GET(request: Request) {
         );
       }
 
-      return Response.json({
+      const response = {
         symbol: upperSymbol,
         price,
         timestamp: Date.now(),
-      });
+      };
+
+      console.log(`✅ Returning price response:`, response);
+      return Response.json(response);
     }
 
     // Otherwise return all available stocks with their current prices

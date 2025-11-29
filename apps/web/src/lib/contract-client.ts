@@ -32,9 +32,11 @@ export function useContractClients() {
 
 /**
  * Create a new prediction room
+ * Returns both the transaction hash and the on-chain roomId
  */
 export async function createRoom(
   walletClient: any,
+  publicClient: any,
   roomData: {
     name: string;
     symbol: string;
@@ -54,6 +56,13 @@ export async function createRoom(
 
     const minStakeBigInt = parseEther(roomData.minStake.toString());
 
+    console.log("📝 Creating room on-chain:", {
+      name: roomData.name,
+      symbol: roomData.symbol,
+      durationMinutes: roomData.durationMinutes,
+      minStake: roomData.minStake,
+    });
+
     const hash = await walletClient.writeContract({
       address: CONTRACT_ADDRESS,
       abi: PredictionRoomABI,
@@ -66,7 +75,32 @@ export async function createRoom(
       ],
     });
 
-    return hash;
+    console.log("✅ Room creation tx submitted:", hash);
+
+    // Wait for transaction to be mined and get the receipt
+    const receipt = await publicClient.waitForTransactionReceipt({
+      hash,
+      confirmations: 1,
+    });
+
+    console.log("📦 Transaction confirmed in block:", receipt.blockNumber);
+
+    // Read nextRoomId from contract to get the roomId of the room we just created
+    // nextRoomId is incremented AFTER creating a room, so the roomId = nextRoomId - 1
+    const nextRoomId = await publicClient.readContract({
+      address: CONTRACT_ADDRESS,
+      abi: PredictionRoomABI,
+      functionName: "nextRoomId",
+    });
+
+    const createdRoomId = Number(nextRoomId) - 1;
+
+    console.log("🎯 Room created with ID:", createdRoomId);
+
+    return {
+      txHash: hash,
+      roomId: createdRoomId,
+    };
   } catch (error) {
     console.error("Error creating room:", error);
     throw error;
@@ -95,6 +129,15 @@ export async function placePrediction(
     const directionEnum = direction === "UP" ? 1 : 2;
     const stakeBigInt = parseEther(stakeAmount.toString());
 
+    console.log("🎯 Placing prediction:", {
+      contractAddress: CONTRACT_ADDRESS,
+      roomId,
+      direction,
+      directionEnum,
+      stakeAmount,
+      stakeBigInt: stakeBigInt.toString(),
+    });
+
     const hash = await walletClient.writeContract({
       address: CONTRACT_ADDRESS,
       abi: PredictionRoomABI,
@@ -103,9 +146,27 @@ export async function placePrediction(
       value: stakeBigInt,
     });
 
+    console.log("✅ Prediction placed, tx hash:", hash);
     return hash;
   } catch (error) {
-    console.error("Error placing prediction:", error);
+    console.error("❌ Error placing prediction:", error);
+    // Parse the error to give more specific feedback
+    const errorMessage = String(error);
+    if (errorMessage.includes("RoomNotWaiting")) {
+      throw new Error("Room is not in waiting status. Did you start the game?");
+    } else if (errorMessage.includes("RoomAlreadyStarted")) {
+      throw new Error(
+        "Room time has expired. This shouldn't happen if you just started it."
+      );
+    } else if (errorMessage.includes("InvalidAmount")) {
+      throw new Error(
+        "Stake amount is less than minimum. Check the room's minimum stake."
+      );
+    } else if (errorMessage.includes("InvalidDirection")) {
+      throw new Error("Invalid direction. Must be UP or DOWN.");
+    } else if (errorMessage.includes("UserAlreadyPredicted")) {
+      throw new Error("You have already placed a prediction in this room.");
+    }
     throw error;
   }
 }
@@ -130,6 +191,12 @@ export async function startRoom(
 
     const priceBigInt = parseEther(startingPrice.toString());
 
+    console.log(`📝 startRoom params:`, {
+      roomId,
+      startingPrice,
+      priceBigInt: priceBigInt.toString(),
+    });
+
     const hash = await walletClient.writeContract({
       address: CONTRACT_ADDRESS,
       abi: PredictionRoomABI,
@@ -137,6 +204,7 @@ export async function startRoom(
       args: [BigInt(roomId), priceBigInt],
     });
 
+    console.log(`✅ startRoom tx hash:`, hash);
     return hash;
   } catch (error) {
     console.error("Error starting room:", error);
@@ -158,18 +226,28 @@ export async function resolveRoom(
       throw new Error("Invalid ending price: " + endingPrice);
     }
 
-    const priceBigInt = parseEther(endingPrice.toString());
+    // Convert USD price to wei (price * 10^18)
+    // This matches how prices are stored in the contract (as fixed-point numbers)
+    const priceWei = BigInt(Math.round(endingPrice * 1e18));
+
+    console.log(`🔧 Calling resolveRoom on contract:`, {
+      contractAddress: CONTRACT_ADDRESS,
+      roomId,
+      endingPriceUSD: endingPrice,
+      priceWei: priceWei.toString(),
+    });
 
     const hash = await walletClient.writeContract({
       address: CONTRACT_ADDRESS,
       abi: PredictionRoomABI,
       functionName: "resolveRoom",
-      args: [BigInt(roomId), priceBigInt],
+      args: [BigInt(roomId), priceWei],
     });
 
+    console.log(`✅ resolveRoom tx hash:`, hash);
     return hash;
   } catch (error) {
-    console.error("Error resolving room:", error);
+    console.error("❌ Error resolving room:", error);
     throw error;
   }
 }
@@ -183,16 +261,22 @@ export async function resolveRoom(
  */
 export async function claimPayout(walletClient: any, roomId: number) {
   try {
+    console.log(`🔧 Calling claimPayout on contract:`, {
+      contractAddress: CONTRACT_ADDRESS,
+      roomId,
+    });
+    
     const hash = await walletClient.writeContract({
       address: CONTRACT_ADDRESS,
       abi: PredictionRoomABI,
-      functionName: "claim",
-      args: [roomId],
+      functionName: "claimPayout",
+      args: [BigInt(roomId)],
     });
 
+    console.log(`✅ claimPayout tx hash:`, hash);
     return hash;
   } catch (error) {
-    console.error("Error claiming payout:", error);
+    console.error("❌ Error claiming payout:", error);
     throw error;
   }
 }

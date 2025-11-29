@@ -32,6 +32,7 @@ contract PredictionRoom {
         uint256 startTime;
         uint256 endTime;
         uint256 minStake;
+        uint256 durationMinutes; // Store duration to calculate endTime when game starts
         uint256 startingPrice;
         uint256 endingPrice;
         RoomStatus status;
@@ -163,8 +164,6 @@ contract PredictionRoom {
         if (minStakeWei == 0) revert InvalidAmount();
 
         roomId = nextRoomId++;
-        uint256 durationSeconds = durationMinutes * 60;
-        uint256 endTime = block.timestamp + durationSeconds;
 
         rooms[roomId] = Room({
             id: roomId,
@@ -172,8 +171,9 @@ contract PredictionRoom {
             name: name,
             symbol: symbol,
             startTime: 0,
-            endTime: endTime,
+            endTime: 0, // Will be set in startRoom()
             minStake: minStakeWei,
+            durationMinutes: durationMinutes, // Store for use in startRoom()
             startingPrice: 0,
             endingPrice: 0,
             status: RoomStatus.WAITING,
@@ -211,6 +211,8 @@ contract PredictionRoom {
         room.status = RoomStatus.ACTIVE;
         room.startingPrice = startingPrice;
         room.startTime = block.timestamp;
+        // Set endTime based on stored durationMinutes, starting from now
+        room.endTime = block.timestamp + (room.durationMinutes * 60);
 
         emit RoomStarted(roomId, startingPrice);
     }
@@ -232,10 +234,10 @@ contract PredictionRoom {
         if (endingPrice == 0) revert InvalidPrice();
         if (room.settled) revert RoomAlreadySettled(); // Prevent double settlement
 
-        // Mark as settled immediately to prevent re-entrancy
-        room.settled = true;
+        // Mark room as completed (not settled yet - that happens after payouts)
         room.endingPrice = endingPrice;
         room.status = RoomStatus.COMPLETED;
+        room.settled = true; // Mark as settled to prevent double resolution
         room.pricesSet = true;
 
         // Determine winning direction
@@ -243,45 +245,58 @@ contract PredictionRoom {
             ? PredictionDirection.UP
             : PredictionDirection.DOWN;
 
-        // Auto-distribute payouts to all winners
-        address[] memory predictors = roomPredictors[roomId];
-        uint256 totalWinnerStake = winningDirection == PredictionDirection.UP
+        emit RoomResolved(roomId, endingPrice, winningDirection);
+    }
+
+    /**
+     * @notice Claim payout for a prediction
+     * Can be called by the predictor after room is resolved
+     * Transfers payout directly to the caller
+     */
+    function claimPayout(uint256 roomId) external roomExists(roomId) {
+        Room storage room = rooms[roomId];
+        
+        // Room must be completed (resolved)
+        if (room.status != RoomStatus.COMPLETED) revert RoomNotActive();
+        
+        // Get caller's prediction
+        Prediction[] storage predictions = userPredictions[roomId][msg.sender];
+        if (predictions.length == 0) revert NothingToClaim();
+        
+        Prediction storage prediction = predictions[0]; // One prediction per user per room
+        
+        // Can only claim once
+        if (prediction.claimed) revert NothingToClaim();
+        
+        // Must be a winner
+        uint256 totalWinnerStake = room.endingPrice > room.startingPrice
             ? room.totalUpStake
             : room.totalDownStake;
-
-        // Only distribute if there are winners
-        if (totalWinnerStake > 0) {
-            uint256 totalPool = room.totalUpStake + room.totalDownStake;
-
-            for (uint256 i = 0; i < predictors.length; i++) {
-                address predictor = predictors[i];
-                Prediction[] storage predictions = userPredictions[roomId][
-                    predictor
-                ];
-
-                for (uint256 j = 0; j < predictions.length; j++) {
-                    Prediction storage prediction = predictions[j];
-
-                    // Skip if already claimed or not a winner
-                    if (prediction.claimed) continue;
-                    if (prediction.direction != winningDirection) continue;
-
-                    // Mark as claimed and calculate payout
-                    prediction.claimed = true;
-                    uint256 payout = (prediction.amount * totalPool) /
-                        totalWinnerStake;
-                    prediction.payout = payout;
-
-                    // Transfer payout to winner
-                    (bool success, ) = predictor.call{value: payout}("");
-                    if (!success) revert TransferFailed();
-
-                    emit PayoutClaimed(predictor, roomId, payout);
-                }
-            }
+            
+        PredictionDirection winningDirection = room.endingPrice > room.startingPrice
+            ? PredictionDirection.UP
+            : PredictionDirection.DOWN;
+            
+        if (prediction.direction != winningDirection) {
+            revert NothingToClaim(); // Loser cannot claim
         }
-
-        emit RoomResolved(roomId, endingPrice, winningDirection);
+        
+        // Calculate payout
+        if (totalWinnerStake == 0) revert NothingToClaim();
+        
+        uint256 totalPool = room.totalUpStake + room.totalDownStake;
+        uint256 payout = (prediction.amount * totalPool) / totalWinnerStake;
+        
+        if (payout == 0) revert NothingToClaim();
+        
+        // Mark as claimed and transfer
+        prediction.claimed = true;
+        prediction.payout = payout;
+        
+        (bool success, ) = msg.sender.call{value: payout}("");
+        if (!success) revert TransferFailed();
+        
+        emit PayoutClaimed(msg.sender, roomId, payout);
     }
 
     /**
@@ -314,11 +329,20 @@ contract PredictionRoom {
         Room storage room = rooms[roomId];
         uint256 amount = msg.value;
 
-        // Validations
-        if (room.status != RoomStatus.WAITING) revert RoomNotWaiting();
-        if (block.timestamp >= room.endTime) revert RoomAlreadyStarted();
-        if (amount < room.minStake) revert InvalidAmount();
-        if (direction == PredictionDirection.NONE) revert InvalidDirection();
+        // Validations with detailed error messages
+        if (room.status != RoomStatus.WAITING) {
+            revert RoomNotWaiting();
+        }
+        // TEMPORARILY DISABLED: Check if we can predict without time validation
+        // if (block.timestamp >= room.endTime) {
+        //     revert RoomAlreadyStarted();
+        // }
+        if (amount < room.minStake) {
+            revert InvalidAmount(); // amount is less than minStake
+        }
+        if (direction == PredictionDirection.NONE) {
+            revert InvalidDirection();
+        }
 
         // Check if user already predicted in this room
         Prediction[] storage userRoomPredictions = userPredictions[roomId][
